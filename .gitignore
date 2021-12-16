@@ -1,4 +1,7 @@
 *.o
+*.so
 *.exr
+.*
+*.zip
 genBrdf
-heightfields/*
+**/results/*
