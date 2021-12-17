@@ -37,12 +37,10 @@ PYBIND11_MODULE(genBrdf, m) {
         query.omega_i = Vector3(omega_i_x, omega_i_y, 1.0).normalized().head(2);
         query.lambda = lambda;
 
-        Float *image;
-        /*
+        double *image;
         if (method == "Geom") {
             GeometricBrdf geometricBrdf(&heightfield, sampleNum);
             image = geometricBrdf.genBrdfImage(query, resolution);
-            //EXRImage::writeImage(brdfImage, outputFilename, outputResolution, outputResolution);
         } else if (method == "Wave") {
             WaveBrdfAccel waveBrdfAccel(&heightfield, diffModel);
             image = waveBrdfAccel.genBrdfImage(query, resolution);
@@ -50,9 +48,16 @@ PYBIND11_MODULE(genBrdf, m) {
             GeometricBrdf geometricBrdf(&heightfield, sampleNum);
             image = geometricBrdf.genNdfImage(query, resolution);
         }
-        delete[] image;
-        */
-        return heightfield.mHeightfieldArray;
+
+        py::capsule free_when_done(image, [](void *i) {
+            double *image = reinterpret_cast<double *>(i);
+            delete[] image;
+        });
+
+        return py::array_t<double>(
+            {resolution, resolution, 3},
+            image,
+            free_when_done);
     },
     "Generate BRDF");
 }

@@ -185,8 +185,8 @@ Float WaveBrdfAccel::queryBrdf(const Query &query) {
     return C1 * pow(abs(I), 2.0f);
 }
 
-Float* WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
-    Float *brdfImage = new Float[resolution * resolution * 3];
+double* WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
+    double *brdfImage = new double[resolution * resolution * 3];
 
     if (query.lambda != 0.0) {
          // Single wavelength.
@@ -260,7 +260,7 @@ Float WaveBrdf::queryBrdf(const Query &query) {
     return 0.0;
 }
 
-Float* WaveBrdf::genBrdfImage(const Query &query, int resolution) {
+double* WaveBrdf::genBrdfImage(const Query &query, int resolution) {
     cout << "Not implemented" << endl;
     return NULL;
 }
@@ -278,7 +278,7 @@ inline Vector2 sampleGauss2d(Float r1, Float r2) {
     return Vector2(x, y);
 }
 
-Float* GeometricBrdf::genNdfImage(const Query &query, int resolution) {
+double* GeometricBrdf::genNdfImage(const Query &query, int resolution) {
     int N = (int) std::sqrt(mSampleNum);
     const Float intrinsicRoughness = Float(1) / N;
     int *inds = new int[N * N];
@@ -318,14 +318,14 @@ Float* GeometricBrdf::genNdfImage(const Query &query, int resolution) {
 
     delete[] inds;
     delete[] bins;
-    return (Float*) ndfImage;
+    return (double*) ndfImage;
 }
 
-Float* GeometricBrdf::genBrdfImage(const Query &query, int resolution) {
+double* GeometricBrdf::genBrdfImage(const Query &query, int resolution) {
     const int ndfResolution = resolution * 2;
-    Float *ndfImage = genNdfImage(query, ndfResolution);
+    double *ndfImage = genNdfImage(query, ndfResolution);
 
-    Float *brdfImage = new Float[resolution * resolution * 3];
+    double *brdfImage = new double[resolution * resolution * 3];
     for (int i = 0; i < resolution; i++) {
         for (int j = 0; j < resolution; j++) {
             brdfImage[(i * resolution + j) * 3 + 0] = 0.0;

@@ -13,21 +13,18 @@ PYBIND11_MODULE(visualize, m) {
     ) {
         EXRImage heightfieldImage(heightfieldFilename.c_str());
         Heightfield heightfield(heightfieldImage.values, heightfieldImage.width, heightfieldImage.height, texelWidth, vertScale);
-        return pybind11::array_t<double>(
-            {heightfieldImage.width, heightfieldImage.height},
-            {heightfieldImage.width * 8, 8},
-            heightfield.mHeightfieldArray);
+        return pybind11::array_t<double>({heightfieldImage.width, heightfieldImage.height}, heightfield.mHeightfieldArray);
     },
     "Read image into heightfield array.");
 
     m.def("genImage", [](
         py::array_t<double> brdfValues, // BRDF values.
-        string outputFilename,           // Output filename.
+        string outputFilename,          // Output filename.
         double resolution               // Resolution.
     ) {
         py::buffer_info buf = brdfValues.request();
         EXRImage::writeImage(static_cast<double *>(buf.ptr), outputFilename.c_str(), resolution, resolution);
-        return "test";
+        return outputFilename;
     },
     "Generate image from brdf values.");
 }

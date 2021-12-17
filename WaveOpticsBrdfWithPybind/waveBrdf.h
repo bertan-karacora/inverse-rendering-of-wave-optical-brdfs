@@ -29,7 +29,7 @@ class BrdfBase {
         BrdfBase(Heightfield *heightfield) : mHeightfield(heightfield) {}
     public:
         virtual Float queryBrdf(const Query &query) = 0;
-        virtual Float* genBrdfImage(const Query &query, int resolution) = 0;
+        virtual double* genBrdfImage(const Query &query, int resolution) = 0;
 
     protected:
         Heightfield *mHeightfield;
@@ -39,9 +39,9 @@ class GeometricBrdf: public BrdfBase {
     public:
         GeometricBrdf() {}
         GeometricBrdf(Heightfield *heightfield, int sampleNum = 10000000) : mHeightfield(heightfield), mSampleNum(sampleNum) {}
-        Float* genNdfImage(const Query &query, int resolution);
+        double* genNdfImage(const Query &query, int resolution);
         virtual Float queryBrdf(const Query &query);
-        virtual Float* genBrdfImage(const Query &query, int resolution);
+        virtual double* genBrdfImage(const Query &query, int resolution);
     protected:
         Heightfield *mHeightfield;
     private:
@@ -54,7 +54,7 @@ class WaveBrdf: public BrdfBase {
         WaveBrdf() {}
         WaveBrdf(Heightfield *heightfield) : mHeightfield(heightfield) {}
         virtual Float queryBrdf(const Query &query);
-        virtual Float* genBrdfImage(const Query &query, int resolution);
+        virtual double* genBrdfImage(const Query &query, int resolution);
     protected:
         Heightfield *mHeightfield;
 };
@@ -67,7 +67,7 @@ class WaveBrdfAccel: public WaveBrdf {
 
         comp queryIntegral(const Query &query, int layer, int xIndex, int yIndex);
         virtual Float queryBrdf(const Query &query);
-        virtual Float* genBrdfImage(const Query &query, int resolution);
+        virtual double* genBrdfImage(const Query &query, int resolution);
 
     protected:
         Heightfield *mHeightfield;
