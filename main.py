@@ -4,7 +4,6 @@ from WaveOpticsBrdfWithPybind.genBrdf import genBrdf
 from WaveOpticsBrdfWithPybind.visualize import readImage, genImage
 
 ref_heightfield = readImage(args.reference, args.texel_width, args.vert_scale)
-print(ref_heightfield)
 #genImage(ref_heightfield, args.save_path, args.resolution)
 
 ref_brdf = genBrdf(
@@ -27,3 +26,4 @@ print(ref_brdf)
 genImage(ref_brdf, args.save_path, args.resolution)
 
 #args.heightfield_hypothesis
+hypo = np.arange(100).reshape(10, 10)
