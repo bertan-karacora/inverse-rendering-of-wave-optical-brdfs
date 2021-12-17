@@ -1,0 +1,91 @@
+#include "heightfield.h"
+
+Float A_inv[16][16] = {{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                       {0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                       {-3, 3, 0, 0, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                       {2, -2, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                       {0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+                       {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
+                       {0, 0, 0, 0, 0, 0, 0, 0, -3, 3, 0, 0, -2, -1, 0, 0},
+                       {0, 0, 0, 0, 0, 0, 0, 0, 2, -2, 0, 0, 1, 1, 0, 0},
+                       {-3, 0, 3, 0, 0, 0, 0, 0, -2, 0, -1, 0, 0, 0, 0, 0},
+                       {0, 0, 0, 0, -3, 0, 3, 0, 0, 0, 0, 0, -2, 0, -1, 0},
+                       {9, -9, -9, 9, 6, 3, -6, -3, 6, -6, 3, -3, 4, 2, 2, 1},
+                       {-6, 6, 6, -6, -3, -3, 3, 3, -4, 4, -2, 2, -2, -2, -1, -1},
+                       {2, 0, -2, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0},
+                       {0, 0, 0, 0, 2, 0, -2, 0, 0, 0, 0, 0, 1, 0, 1, 0},
+                       {-6, 6, 6, -6, -4, -2, 4, 2, -3, 3, -3, 3, -2, -1, -2, -1},
+                       {4, -4, -4, 4, 2, 2, -2, -2, 2, -2, 2, -2, 1, 1, 1, 1}};
+
+void Heightfield::computeCoeff(Float *alpha, const Float *x) {
+    memset(alpha, 0, sizeof(Float) * 16);
+    for (int i = 0; i < 16; i++) {
+        for (int j = 0; j < 16; j++) {
+            alpha[i] += A_inv[i][j] * x[j];
+        }
+    }
+}
+
+// Bicubic interpolation
+Float Heightfield::getValue(Float x, Float y) {
+    return getValueUV(x / height, y / width);
+}
+
+// Bicubic interpolation
+Float Heightfield::getValueUV(Float u, Float v) {
+    Float x = u * height;
+    Float y = v * width;
+    int x1 = (int) floor(x);
+    int y1 = (int) floor(y);
+    int x2 = x1 + 1;
+    int y2 = y1 + 1;
+
+    Float a[16];
+    Float xp[16] = {hp(x1, y1), hp(x2, y1), hp(x1, y2), hp(x2, y2),
+                    hpx(x1, y1), hpx(x2, y1), hpx(x1, y2), hpx(x2, y2),
+                    hpy(x1, y1), hpy(x2, y1), hpy(x1, y2), hpy(x2, y2),
+                    hpxy(x1, y1), hpxy(x2, y1), hpxy(x1, y2), hpxy(x2, y2)};
+
+    computeCoeff(a, xp);
+
+    Float coeffA[4][4] = {{a[0], a[4], a[8], a[12]},
+                          {a[1], a[5], a[9], a[13]},
+                          {a[2], a[6], a[10], a[14]},
+                          {a[3], a[7], a[11], a[15]}};
+    
+    Float h = 0.0f;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            h += coeffA[i][j] * pow(x - x1, (Float)(i)) * pow(y - y1, (Float)(j));
+        }
+    }
+
+    return h;
+}
+
+GaborKernel Heightfield::g(int i, int j, Float F, Float lambda) {
+    Vector2 m_k(Float((i + 0.5) * mTexelWidth), Float((j + 0.5) * mTexelWidth));
+    Float l_k = mTexelWidth;
+
+    Vector2 mu_k = m_k;
+    Float sigma_k = l_k / SCALE_FACTOR;
+
+    Float H_mk = getValue(i + 0.5, j + 0.5) * mTexelWidth * mVertScale;   // Assuming mTexelWidth doesn't affect the heightfield's shape.
+    Vector2 HPrime_mk(Float((getValue(i + 1, j) - getValue(i, j)) * mVertScale),
+                      Float((getValue(i, j + 1) - getValue(i, j)) * mVertScale));
+
+    comp C_k = sqrt(F) * l_k * l_k * cnis(4.0 * M_PI / lambda * (H_mk - HPrime_mk.dot(m_k)));
+    Vector2 a_k = 2.0 * HPrime_mk / lambda;
+
+    return GaborKernel(mu_k, sigma_k, a_k, C_k);
+}
+
+Vector2 Heightfield::n(Float i, Float j) {
+    Vector2 HPrime(Float((getValue(i + 0.5f, j) - getValue(i - 0.5f, j)) * mVertScale),
+                   Float((getValue(i, j + 0.5f) - getValue(i, j - 0.5f)) * mVertScale));
+
+    Vector3 n(-HPrime(0), -HPrime(1), Float(1.0));
+    n.normalize();
+
+    return n.head(2);
+}

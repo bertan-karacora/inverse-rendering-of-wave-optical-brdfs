@@ -1,19 +1,28 @@
-all: genBrdf
+all: genBrdf visualize
 
-genBrdf: exrimage.o gaborkernel.o waveBrdf.o spectrum.o genBrdf.cpp
-	g++ -std=c++11 -O3 -shared -fPIC exrimage.o gaborkernel.o waveBrdf.o spectrum.o genBrdf.cpp -o genBrdf$$(python3-config --extension-suffix) -I /usr/include/eigen3 $$(python3 -m pybind11 --includes) -L/usr/local/lib -lIlmImf -lHalf -march=native -fopenmp
+
+genBrdf: heightfield.o gaborkernel.o waveBrdf.o spectrum.o genBrdf.cpp
+	g++ -std=c++11 -O3 -shared -fPIC heightfield.o gaborkernel.o waveBrdf.o spectrum.o genBrdf.cpp -o genBrdf$$(python3-config --extension-suffix) -I /usr/include/eigen3 $$(python3 -m pybind11 --includes) -L/usr/local/lib -lIlmImf -lHalf -march=native -fopenmp
+
+gaborkernel.o: gaborkernel.h gaborkernel.cpp
+	g++ -std=c++11 -O3 -shared -fPIC -c gaborkernel.cpp -I/usr/include/eigen3 -o gaborkernel.o -march=native -fopenmp
+
+waveBrdf.o: waveBrdf.h waveBrdf.cpp
+	g++ -std=c++11 -O3 -shared -fPIC -c waveBrdf.cpp -I/usr/include/eigen3 -o waveBrdf.o -march=native -fopenmp
+
+spectrum.o: spectrum.h spectrum.cpp
+	g++ -std=c++11 -O3 -shared -fPIC -c spectrum.cpp -I/usr/include/eigen3 -o spectrum.o -march=native -fopenmp
+
+heightfield.o: heightfield.h heightfield.cpp
+	g++ -std=c++11 -O3 -shared -fPIC -c heightfield.cpp -I/usr/include/eigen3 -o heightfield.o -march=native -fopenmp
+
+
+visualize: exrimage.o visualize.cpp
+	g++ -std=c++11 -O3 -shared -fPIC exrimage.o visualize.cpp -o visualize$$(python3-config --extension-suffix) $$(python3 -m pybind11 --includes) -I/usr/include/eigen3 -L/usr/local/lib -lIlmImf -lHalf -march=native -fopenmp
 
 exrimage.o: exrimage.h exrimage.cpp
 	g++ -std=c++11 -O3 -shared -fPIC -c exrimage.cpp -I/usr/include/OpenEXR -I/usr/include/eigen3 -o exrimage.o -march=native -fopenmp
 
-gaborkernel.o: gaborkernel.h gaborkernel.cpp
-	g++ -std=c++11 -O3 -shared -fPIC -c gaborkernel.cpp -I/usr/include/OpenEXR -I/usr/include/eigen3 -o gaborkernel.o -march=native -fopenmp
-
-waveBrdf.o: waveBrdf.h waveBrdf.cpp
-	g++ -std=c++11 -O3 -shared -fPIC -c waveBrdf.cpp -I/usr/include/OpenEXR -I/usr/include/eigen3 -o waveBrdf.o -march=native -fopenmp
-
-spectrum.o: spectrum.h spectrum.cpp
-	g++ -std=c++11 -O3 -shared -fPIC -c spectrum.cpp -I/usr/include/OpenEXR -I/usr/include/eigen3 -o spectrum.o -march=native -fopenmp
 
 clean:
 	rm -f *.o

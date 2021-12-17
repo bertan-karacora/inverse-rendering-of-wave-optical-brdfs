@@ -1,60 +1,12 @@
-/*
-
-Copyright 2018 Lingqi Yan
-
-This file is part of WaveOpticsBrdf.
-
-WaveOpticsBrdf is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-WaveOpticsBrdf is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with WaveOpticsBrdf.  If not, see <https://www.gnu.org/licenses/>.
-
-*/
-
 #include "waveBrdf.h"
 #include "spectrum.h"
-
-GaborKernel Heightfield::g(int i, int j, Float F, Float lambda) {
-    Vector2 m_k(Float((i + 0.5) * mTexelWidth), Float((j + 0.5) * mTexelWidth));
-    Float l_k = mTexelWidth;
-
-    Vector2 mu_k = m_k;
-    Float sigma_k = l_k / SCALE_FACTOR;
-
-    Float H_mk = mHeightfieldImage->getValue(i + 0.5, j + 0.5) * mTexelWidth * mVertScale;   // Assuming mTexelWidth doesn't affect the heightfield's shape.
-    Vector2 HPrime_mk(Float((mHeightfieldImage->getValue(i + 1, j) - mHeightfieldImage->getValue(i, j)) * mVertScale),
-                      Float((mHeightfieldImage->getValue(i, j + 1) - mHeightfieldImage->getValue(i, j)) * mVertScale));
-
-    comp C_k = sqrt(F) * l_k * l_k * cnis(4.0 * M_PI / lambda * (H_mk - HPrime_mk.dot(m_k)));
-    Vector2 a_k = 2.0 * HPrime_mk / lambda;
-
-    return GaborKernel(mu_k, sigma_k, a_k, C_k);
-}
-
-Vector2 Heightfield::n(Float i, Float j) {
-    Vector2 HPrime(Float((mHeightfieldImage->getValue(i + 0.5f, j) - mHeightfieldImage->getValue(i - 0.5f, j)) * mVertScale),
-                   Float((mHeightfieldImage->getValue(i, j + 0.5f) - mHeightfieldImage->getValue(i, j - 0.5f)) * mVertScale));
-
-    Vector3 n(-HPrime(0), -HPrime(1), Float(1.0));
-    n.normalize();
-
-    return n.head(2);
-}
 
 WaveBrdfAccel::WaveBrdfAccel(Heightfield *heightfield, string method) {
     mHeightfield = heightfield;
     mMethod = method;
 
-    const int &height = mHeightfield->mHeightfieldImage->height;
-    const int &width = mHeightfield->mHeightfieldImage->width;
+    const int &height = mHeightfield->height;
+    const int &width = mHeightfield->width;
     assert(height == width);
 
 
@@ -82,10 +34,10 @@ WaveBrdfAccel::WaveBrdfAccel(Heightfield *heightfield, string method) {
             Vector2 mu_k = m_k;
             Float sigma_k = l_k / SCALE_FACTOR;
 
-            Float H_mk = mHeightfield->mHeightfieldImage->getValue(i, j) * mHeightfield->mTexelWidth * mHeightfield->mVertScale;   // Assuming mTexelWidth doesn't affect the heightfield's shape.
+            Float H_mk = mHeightfield->getValue(i, j) * mHeightfield->mTexelWidth * mHeightfield->mVertScale;   // Assuming mTexelWidth doesn't affect the heightfield's shape.
 
-            Vector2 HPrime_mk(Float((mHeightfield->mHeightfieldImage->getValue(i + 1, j) - mHeightfield->mHeightfieldImage->getValue(i - 1, j)) / 2.0 * mHeightfield->mVertScale),
-                              Float((mHeightfield->mHeightfieldImage->getValue(i, j + 1) - mHeightfield->mHeightfieldImage->getValue(i, j - 1)) / 2.0 * mHeightfield->mVertScale));
+            Vector2 HPrime_mk(Float((mHeightfield->getValue(i + 1, j) - mHeightfield->getValue(i - 1, j)) / 2.0 * mHeightfield->mVertScale),
+                              Float((mHeightfield->getValue(i, j + 1) - mHeightfield->getValue(i, j - 1)) / 2.0 * mHeightfield->mVertScale));
 
             Float cInfo_k = H_mk - HPrime_mk.dot(m_k);
             Vector2 aInfo_k = 2.0 * HPrime_mk;
@@ -131,7 +83,7 @@ comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int
         Vector2 omega_a = (query.omega_i + query.omega_o) / 2.0;
         Vector2 m_k(Float((xIndex + 0.5) * mHeightfield->mTexelWidth), Float((yIndex + 0.5) * mHeightfield->mTexelWidth));
 
-        Float period = mHeightfield->mTexelWidth * mHeightfield->mHeightfieldImage->height;
+        Float period = mHeightfield->mTexelWidth * mHeightfield->height;
         Float pDistSqr = distSqrPeriod(m_k, query.mu_p, period);
         if (pDistSqr > (3.0 * query.sigma_p) * (3.0 * query.sigma_p))
             return comp(Float(0.0), Float(0.0));
@@ -179,7 +131,7 @@ comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int
                       (yIndex + 1.0) * layerScale * mHeightfield->mTexelWidth);
     AABB queryBB(query.mu_p(0) - 3.0 * query.sigma_p, query.mu_p(0) + 3.0 * query.sigma_p,
                  query.mu_p(1) - 3.0 * query.sigma_p, query.mu_p(1) + 3.0 * query.sigma_p);
-    Float period = mHeightfield->mTexelWidth * mHeightfield->mHeightfieldImage->height;
+    Float period = mHeightfield->mTexelWidth * mHeightfield->height;
     if (!intersectAABBRot(positionalBB, queryBB, period))
         return comp(Float(0.0), Float(0.0));
 
@@ -210,8 +162,8 @@ comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int
 Float WaveBrdfAccel::queryBrdf(const Query &query) {
     // Move the query center to the first HF period.
     Query q = query;
-    Float hfHeightWorld = mHeightfield->mTexelWidth * mHeightfield->mHeightfieldImage->height;
-    Float hfWidthWorld = mHeightfield->mTexelWidth * mHeightfield->mHeightfieldImage->width;
+    Float hfHeightWorld = mHeightfield->mTexelWidth * mHeightfield->height;
+    Float hfWidthWorld = mHeightfield->mTexelWidth * mHeightfield->width;
     q.mu_p(0) -= ((int) floor(q.mu_p(0) / hfHeightWorld)) * hfHeightWorld;
     q.mu_p(1) -= ((int) floor(q.mu_p(1) / hfWidthWorld)) * hfWidthWorld;
 
