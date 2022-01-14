@@ -8,7 +8,7 @@ LIBRARIES			:= -L /usr/local/lib
 SUFFIX				:= $$(python3-config --extension-suffix)
 
 
-all: directories genBrdf visualize
+all: directories exrimage heightfield brdf
 
 remake: clean all
 
@@ -17,15 +17,13 @@ directories:
 
 clean:
 	rm -rf $(BUILDDIR)
-	rm -rf genBrdf$(SUFFIX)
-	rm -rf visualize$(SUFFIX)
+	rm -rf exrimage$(SUFFIX)
+	rm -rf heightfield$(SUFFIX)
 
 
-genBrdf: $(BUILDDIR)/heightfield.o $(BUILDDIR)/gaborkernel.o $(BUILDDIR)/waveBrdf.o $(BUILDDIR)/spectrum.o $(SOURCEDIR)/genBrdf.cpp
+exrimage: $(SOURCEDIR)/exrimage.h $(SOURCEDIR)/exrimage.cpp
 	g++ $(CFLAGS) $^ -o $@$(SUFFIX) $(INCLUDES) $(LIBRARIES) -lIlmImf -lHalf
 
-visualize: $(BUILDDIR)/exrimage.o $(SOURCEDIR)/visualize.cpp
+heightfield: $(SOURCEDIR)/heightfield.h $(SOURCEDIR)/heightfield.cpp
 	g++ $(CFLAGS) $^ -o $@$(SUFFIX) $(INCLUDES) $(LIBRARIES) -lIlmImf -lHalf
 
-$(BUILDDIR)/%.o: $(SOURCEDIR)/%.cpp $(SOURCEDIR)/%.h 
-	g++ $(CFLAGS) -c $< -o $@ $(INCLUDES)

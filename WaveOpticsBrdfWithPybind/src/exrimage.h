@@ -3,20 +3,22 @@
 
 #include <OpenEXR/ImfRgbaFile.h>
 #include <OpenEXR/ImfArray.h>
+#include <Eigen/Dense>
 #include "helpers.h"
 
 using namespace Imf;
-using namespace std;
+using namespace Eigen;
 
 class EXRImage {
-public:
-    EXRImage(const char *filename);
-    void readImage(const char *filename);
-    static void writeImage(const double *image, const char *filename, int outputHeight, int outputWidth);
+    public:
+        EXRImage(const char *filename);
+        void readImage(const char *filename);
+        static void writeImageRGB(const MatrixXf r_image, const MatrixXf g_image, const MatrixXf b_image, int outputWidth, int outputHeight, const char *filename);
+        static void writeImage(const MatrixXf image, int outputWidth, int outputHeight, const char *filename);
     
-public:
-    double *values;
-    int width, height;
+    public:
+        MatrixXf values;
+        int width, height;
 };
 
 #endif

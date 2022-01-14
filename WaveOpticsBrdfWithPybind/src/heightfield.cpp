@@ -1,5 +1,28 @@
 #include "heightfield.h"
 
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+#include <pybind11/eigen.h>
+
+using namespace Eigen;
+namespace py = pybind11;
+
+PYBIND11_MODULE(heightfield, m) {
+    py::class_<Heightfield>(m, "Heightfield")
+        .def(py::init<>())
+        .def(py::init<MatrixXf, int, int, Float, Float>())
+        .def_readwrite("width", &Heightfield::width)
+        .def_readwrite("height", &Heightfield::height)
+        .def_readwrite("values", &Heightfield::values)
+        .def_readwrite("texelWidth", &Heightfield::texelWidth)
+        .def_readwrite("vertScale", &Heightfield::vertScale)
+        .def("getValue", &Heightfield::getValue)
+        .def("getValueUV", &Heightfield::getValueUV)
+        .def("g", &Heightfield::g)
+        .def("n", &Heightfield::n);
+}
+
+
 Float A_inv[16][16] = {{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
                        {0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
                        {-3, 3, 0, 0, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -64,15 +87,15 @@ Float Heightfield::getValueUV(Float u, Float v) {
 }
 
 GaborKernel Heightfield::g(int i, int j, Float F, Float lambda) {
-    Vector2 m_k(Float((i + 0.5) * mTexelWidth), Float((j + 0.5) * mTexelWidth));
-    Float l_k = mTexelWidth;
+    Vector2 m_k(Float((i + 0.5) * texelWidth), Float((j + 0.5) * texelWidth));
+    Float l_k = texelWidth;
 
     Vector2 mu_k = m_k;
     Float sigma_k = l_k / SCALE_FACTOR;
 
-    Float H_mk = getValue(i + 0.5, j + 0.5) * mTexelWidth * mVertScale;   // Assuming mTexelWidth doesn't affect the heightfield's shape.
-    Vector2 HPrime_mk(Float((getValue(i + 1, j) - getValue(i, j)) * mVertScale),
-                      Float((getValue(i, j + 1) - getValue(i, j)) * mVertScale));
+    Float H_mk = getValue(i + 0.5, j + 0.5) * texelWidth * vertScale;   // Assuming mTexelWidth doesn't affect the heightfield's shape.
+    Vector2 HPrime_mk(Float((getValue(i + 1, j) - getValue(i, j)) * vertScale),
+                      Float((getValue(i, j + 1) - getValue(i, j)) * vertScale));
 
     comp C_k = sqrt(F) * l_k * l_k * cnis(4.0 * M_PI / lambda * (H_mk - HPrime_mk.dot(m_k)));
     Vector2 a_k = 2.0 * HPrime_mk / lambda;
@@ -81,8 +104,8 @@ GaborKernel Heightfield::g(int i, int j, Float F, Float lambda) {
 }
 
 Vector2 Heightfield::n(Float i, Float j) {
-    Vector2 HPrime(Float((getValue(i + 0.5f, j) - getValue(i - 0.5f, j)) * mVertScale),
-                   Float((getValue(i, j + 0.5f) - getValue(i, j - 0.5f)) * mVertScale));
+    Vector2 HPrime(Float((getValue(i + 0.5f, j) - getValue(i - 0.5f, j)) * vertScale),
+                   Float((getValue(i, j + 0.5f) - getValue(i, j - 0.5f)) * vertScale));
 
     Vector3 n(-HPrime(0), -HPrime(1), Float(1.0));
     n.normalize();

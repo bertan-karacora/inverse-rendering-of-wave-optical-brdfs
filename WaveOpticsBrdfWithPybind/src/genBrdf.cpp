@@ -28,8 +28,6 @@ PYBIND11_MODULE(genBrdf, m) {
         srand(time(NULL));
 
         SpectrumInit();
-        py::buffer_info buf = heightfieldArray.request();
-        Heightfield heightfield(static_cast<double *>(buf.ptr), buf.shape[0], buf.shape[1], texelWidth, vertScale);
 
         Query query;
         query.mu_p = Vector2(x, y);
