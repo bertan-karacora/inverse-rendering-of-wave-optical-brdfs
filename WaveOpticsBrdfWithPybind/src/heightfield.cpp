@@ -12,7 +12,7 @@ PYBIND11_MODULE(heightfield, m) {
     py::class_<Heightfield>(m, "Heightfield")
         .def(py::init<>())
         .def(py::init<MatrixXf, int, int, Float, Float>())
-        .def(py::init<GaborBasis>())
+        .def(py::init<GaborBasis, int, int, Float, Float>())
         .def_readwrite("width", &Heightfield::width)
         .def_readwrite("height", &Heightfield::height)
         .def_readwrite("values", &Heightfield::values)
@@ -47,8 +47,18 @@ Float A_inv[16][16] = {{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
                        {-6, 6, 6, -6, -4, -2, 4, 2, -3, 3, -3, 3, -2, -1, -2, -1},
                        {4, -4, -4, 4, 2, 2, -2, -2, 2, -2, 2, -2, 1, 1, 1, 1}};
 
-Heightfield::Heightfield(GaborBasis gaborBasis) {
+Heightfield::Heightfield(GaborBasis gaborBasis, int w, int h, Float tw, Float vs) {
+    texelWidth = tw;
+    vertScale = vs;
+    width = w;
+    height = h;
+    values = MatrixXf(width, height);
 
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            values(i, j) = (gaborBasis.gaborKernelPrime[i][j].aInfo / 2.0).dot(Vector2f(i, j)) + gaborBasis.gaborKernelPrime[i][j].cInfo;
+        }
+    }
 }
 
 void Heightfield::computeCoeff(Float *alpha, const Float *x) {

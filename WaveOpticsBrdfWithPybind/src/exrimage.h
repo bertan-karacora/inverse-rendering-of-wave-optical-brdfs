@@ -13,8 +13,8 @@ class EXRImage {
     public:
         EXRImage(const char *filename);
         void readImage(const char *filename);
-        static void writeImageRGB(const MatrixXf r_image, const MatrixXf g_image, const MatrixXf b_image, int outputWidth, int outputHeight, const char *filename);
-        static void writeImage(const MatrixXf image, int outputWidth, int outputHeight, const char *filename);
+        static string writeImageRGB(const MatrixXf r_image, const MatrixXf g_image, const MatrixXf b_image, int outputWidth, int outputHeight, string filename);
+        static void writeImage(const MatrixXf image, int outputWidth, int outputHeight, string filename);
     
     public:
         MatrixXf values;

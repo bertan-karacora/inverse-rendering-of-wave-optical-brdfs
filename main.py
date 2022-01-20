@@ -8,20 +8,22 @@ from WaveOpticsBrdfWithPybind.brdf import init, makeQuery, Query, BrdfImage, Brd
 init()
 
 refImage = EXRImage(args.reference)
-# print(refImage.values)
-# print(EXRImage.writeImage(refImage.values, args.resolution, args.resolution, args.save_path))
+# EXRImage.writeImage(refImage.values, args.resolution, args.resolution, args.save_path)
 
 refHeightfield = Heightfield(refImage.values, refImage.width, refImage.height, args.texel_width, args.vert_scale)
-# print(refHeightfield.values)
-# print(refHeightfield.getValue(55.5, 4.0))
-# print(EXRImage.writeImage(refHeightfield.values, args.resolution, args.resolution, args.save_path))
+# EXRImage.writeImage(refHeightfield.values, args.resolution, args.resolution, args.save_path)
+
+print(refHeightfield.getValue(40, 50))
 
 gaborBasis = refHeightfield.toGaborBasis()
-print(gaborBasis.gaborKernelPrime[500][450].cInfo)
+hf = Heightfield(gaborBasis, refImage.width, refImage.height, args.texel_width, args.vert_scale)
+EXRImage.writeImage(hf.values, args.resolution, args.resolution, args.save_path)
 
-query = makeQuery(args.x, args.y, args.sigma, args.lambda_, args.light_x, args.light_y)
+print(hf.getValue(40, 50))
 
-brdf = WaveBrdfAccel(args.diff_model, gaborBasis, refHeightfield.width, refHeightfield.height, refHeightfield.texelWidth)
-result = brdf.genBrdfImage(query, args.resolution)
+# query = makeQuery(args.x, args.y, args.sigma, args.lambda_, args.light_x, args.light_y)
 
-EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, args.save_path)
+# brdf = WaveBrdfAccel(args.diff_model, gaborBasis, refHeightfield.width, refHeightfield.height, refHeightfield.texelWidth)
+# result = brdf.genBrdfImage(query, args.resolution)
+
+# EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, args.save_path)

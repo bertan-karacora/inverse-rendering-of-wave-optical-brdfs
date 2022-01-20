@@ -25,7 +25,7 @@ class Heightfield {
         Heightfield() {}
         Heightfield(MatrixXf values, int width, int height, Float texelWidth = 1.0, Float vertScale = 1.0)
                     : values(values), width(width), height(height), texelWidth(texelWidth), vertScale(vertScale) {}
-        Heightfield(GaborBasis gaborBasis);
+        Heightfield(GaborBasis gaborBasis, int w, int h, Float tw, Float vs);
 
         // Bicubic interpolation.
         Float getValue(Float x, Float y);

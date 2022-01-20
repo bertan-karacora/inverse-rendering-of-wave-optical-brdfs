@@ -41,7 +41,7 @@ void EXRImage::readImage(const char *filename) {
     }
 }
 
-void EXRImage::writeImageRGB(const MatrixXf r_image, const MatrixXf g_image, const MatrixXf b_image, int outputWidth, int outputHeight, const char *filename) {
+string EXRImage::writeImageRGB(const MatrixXf r_image, const MatrixXf g_image, const MatrixXf b_image, int outputWidth, int outputHeight, string filename) {
     Rgba *pixels = new Rgba[outputHeight * outputWidth];
 
     // Write to image
@@ -54,13 +54,14 @@ void EXRImage::writeImageRGB(const MatrixXf r_image, const MatrixXf g_image, con
         }
     }
 
-    RgbaOutputFile file(filename, outputHeight, outputWidth, WRITE_RGBA);
+    RgbaOutputFile file(filename.c_str(), outputHeight, outputWidth, WRITE_RGBA);
     file.setFrameBuffer(pixels, 1, outputWidth);
     file.writePixels(outputHeight);
 
     delete[] pixels;
+    return filename;
 }
 
-void EXRImage::writeImage(const MatrixXf image, int outputWidth, int outputHeight, const char *filename) {
+void EXRImage::writeImage(const MatrixXf image, int outputWidth, int outputHeight, string filename) {
     writeImageRGB(image, image, image, outputWidth, outputHeight, filename);
 }
