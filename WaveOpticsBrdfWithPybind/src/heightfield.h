@@ -4,12 +4,20 @@
 #include <iostream>
 #include <cmath>
 #include <cstdio>
+#include <vector>
 #include <Eigen/Dense>
 #include "gaborkernel.h"
 #include "helpers.h"
 
 using namespace std;
 using namespace Eigen;
+
+struct GaborBasis {
+    vector<vector<GaborKernelPrime>> gaborKernelPrime;
+    vector<vector<vector<AABB>>> angularBB;
+    int topLayer;
+};
+
 
 // Suppose it starts from (0, 0) and extends to positive (w * mTexelWidth, h * mTexelWidth) and is tiling along both axes.
 class Heightfield {
@@ -25,6 +33,8 @@ class Heightfield {
 
         GaborKernel g(int i, int j, Float F, Float lambda);
         Vector2 n(Float i, Float j);
+
+        GaborBasis toGaborBasis();
     public:
         MatrixXf values;
         int width, height;

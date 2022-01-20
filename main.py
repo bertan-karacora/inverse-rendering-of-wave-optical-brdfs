@@ -1,7 +1,11 @@
 import numpy as np
 from options import args
 from WaveOpticsBrdfWithPybind.exrimage import EXRImage
-from WaveOpticsBrdfWithPybind.heightfield import Heightfield
+from WaveOpticsBrdfWithPybind.heightfield import Heightfield, GaborBasis
+from WaveOpticsBrdfWithPybind.gaborkernel import GaborKernel, GaborKernelPrime
+from WaveOpticsBrdfWithPybind.brdf import init, makeQuery, Query, BrdfBase, GeometricBrdf, WaveBrdfAccel
+
+init()
 
 refImage = EXRImage(args.reference)
 # print(refImage.values)
@@ -12,27 +16,12 @@ refHeightfield = Heightfield(refImage.values, refImage.width, refImage.height, a
 # print(refHeightfield.getValue(55.5, 4.0))
 # print(EXRImage.writeImage(refHeightfield.values, args.resolution, args.resolution, args.save_path))
 
-gaborKernel = toGaborKernel(ref_heightfield)
+gaborBasis = refHeightfield.toGaborBasis()
+print(gaborBasis.gaborKernelPrime[500][450].cInfo)
 
-# print(gaborKernel)
-# ref_brdf = genBrdf(
-#     gaborKernel,
-#     args.texel_width,
-#     args.vert_scale,
-#     args.x,
-#     args.y,
-#     args.sigma,
-#     args.method,
-#     args.sample_num,
-#     args.diff_model,
-#     args.lambda_,
-#     args.light_x,
-#     args.light_y,
-#     args.resolution
-# )
-# print(ref_brdf)
+query = makeQuery(args.x, args.y, args.sigma, args.lambda_, args.light_x, args.light_y)
 
-# genImage(ref_brdf, args.save_path, args.resolution)
-
-# #args.heightfield_hypothesis
-# hypo = np.arange(100).reshape(10, 10)
+brdf = WaveBrdfAccel(args.method, gaborBasis, refHeightfield.width, refHeightfield.height, refHeightfield.texelWidth)
+result = brdf.genBrdfImage(query, args.resolution)
+print(result[200][200])
+EXRImage.writeImage(result, args.resolution, args.resolution, args.save_path)

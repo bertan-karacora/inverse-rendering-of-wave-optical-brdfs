@@ -8,22 +8,32 @@ LIBRARIES			:= -L /usr/local/lib
 SUFFIX				:= $$(python3-config --extension-suffix)
 
 
-all: directories exrimage heightfield brdf
-
-remake: clean all
+all: directories exrimage heightfield gaborkernel brdf
 
 directories:
 	mkdir -p $(BUILDDIR)
+
+remake: clean all
 
 clean:
 	rm -rf $(BUILDDIR)
 	rm -rf exrimage$(SUFFIX)
 	rm -rf heightfield$(SUFFIX)
+	rm -rf gaborkernel$(SUFFIX)
+	rm -rf brdf$(SUFFIX)
 
 
-exrimage: $(SOURCEDIR)/exrimage.h $(SOURCEDIR)/exrimage.cpp
+exrimage: $(BUILDDIR)/exrimage.o
 	g++ $(CFLAGS) $^ -o $@$(SUFFIX) $(INCLUDES) $(LIBRARIES) -lIlmImf -lHalf
 
-heightfield: $(SOURCEDIR)/heightfield.h $(SOURCEDIR)/heightfield.cpp
+heightfield: $(BUILDDIR)/heightfield.o
 	g++ $(CFLAGS) $^ -o $@$(SUFFIX) $(INCLUDES) $(LIBRARIES) -lIlmImf -lHalf
 
+gaborkernel: $(BUILDDIR)/gaborkernel.o
+	g++ $(CFLAGS) $^ -o $@$(SUFFIX) $(INCLUDES) $(LIBRARIES) -lIlmImf -lHalf
+
+brdf: $(BUILDDIR)/spectrum.o $(BUILDDIR)/gaborkernel.o $(BUILDDIR)/heightfield.o $(SOURCEDIR)/brdf.h $(SOURCEDIR)/brdf.cpp
+	g++ $(CFLAGS) $^ -o $@$(SUFFIX) $(INCLUDES) $(LIBRARIES) -lIlmImf -lHalf
+
+$(BUILDDIR)/%.o: $(SOURCEDIR)/%.cpp $(SOURCEDIR)/%.h
+	g++ $(CFLAGS) -c $< -o $@ $(INCLUDES)

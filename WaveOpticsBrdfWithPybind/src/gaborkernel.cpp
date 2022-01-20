@@ -1,5 +1,35 @@
 #include "gaborkernel.h"
 
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+#include <pybind11/eigen.h>
+
+using namespace Eigen;
+namespace py = pybind11;
+
+PYBIND11_MODULE(gaborkernel, m) {
+    py::class_<GaborKernel>(m, "GaborKernel")
+        .def(py::init<>())
+        .def(py::init<Vector2, Float, Vector2, comp>())
+        .def_readwrite("mu", &GaborKernel::mu)
+        .def_readwrite("sigma", &GaborKernel::sigma)
+        .def_readwrite("a", &GaborKernel::a)
+        .def_readwrite("C", &GaborKernel::C)
+        .def("eval", &GaborKernel::eval)
+        .def("xform", &GaborKernel::xform);
+
+    py::class_<GaborKernelPrime>(m, "GaborKernelPrime")
+        .def(py::init<>())
+        .def(py::init<Vector2, Float, Vector2, Float>())
+        .def_readwrite("mu", &GaborKernelPrime::mu)
+        .def_readwrite("sigma", &GaborKernelPrime::sigma)
+        .def_readwrite("aInfo", &GaborKernelPrime::aInfo)
+        .def_readwrite("cInfo", &GaborKernelPrime::cInfo)
+        .def("toGaborKernel", &GaborKernelPrime::toGaborKernel)
+        .def("getFFTCenter", &GaborKernelPrime::getFFTCenter)
+        .def("getFFTWidth", &GaborKernelPrime::getFFTWidth);
+}
+
 comp GaborKernel::eval(Vector2 s) {
     return C * G(s, mu, sigma) * cnis(Float(2.0 * M_PI * a.dot(s)));
 }

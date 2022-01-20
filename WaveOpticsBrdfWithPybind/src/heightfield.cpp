@@ -2,6 +2,7 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/stl.h>
 #include <pybind11/eigen.h>
 
 using namespace Eigen;
@@ -19,9 +20,14 @@ PYBIND11_MODULE(heightfield, m) {
         .def("getValue", &Heightfield::getValue)
         .def("getValueUV", &Heightfield::getValueUV)
         .def("g", &Heightfield::g)
-        .def("n", &Heightfield::n);
-}
+        .def("n", &Heightfield::n)
+        .def("toGaborBasis", &Heightfield::toGaborBasis);
 
+    py::class_<GaborBasis>(m, "GaborBasis")
+        .def_readwrite("gaborKernelPrime", &GaborBasis::gaborKernelPrime)
+        .def_readwrite("angularBB", &GaborBasis::angularBB)
+        .def_readwrite("topLayer", &GaborBasis::topLayer);
+}
 
 Float A_inv[16][16] = {{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
                        {0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -111,4 +117,72 @@ Vector2 Heightfield::n(Float i, Float j) {
     n.normalize();
 
     return n.head(2);
+}
+
+GaborBasis Heightfield::toGaborBasis() {
+        GaborBasis gaborBasis;
+
+        assert(height == width);
+        
+        gaborBasis.topLayer = (int) floor(log(height * 1.0) / log(2.0) + 1e-4);    // 0, 1, 2, ..., topLayer.
+
+        cout << "Preprocessing heightfield: layer 0..." << endl;
+        gaborBasis.angularBB.push_back(vector<vector<AABB>>());
+        vector<vector<AABB>> &angularBBLayer = gaborBasis.angularBB.back();
+        angularBBLayer.reserve(height);
+        for (int i = 0; i < height; i++) {
+            angularBBLayer.push_back(vector<AABB>());
+            angularBBLayer.back().reserve(width);
+            gaborBasis.gaborKernelPrime.push_back(vector<GaborKernelPrime>());
+            gaborBasis.gaborKernelPrime.back().reserve(width);
+        }
+
+        #pragma omp parallel for schedule(dynamic)
+        for (int i = 0; i < height; i++) {
+            vector<GaborKernelPrime> &gaborKernelPrimeRow = gaborBasis.gaborKernelPrime[i];
+            vector<AABB> &angularBBRow = angularBBLayer[i];
+            for (int j = 0; j < width; j++) {
+                Vector2 m_k(Float((i + 0.5) * texelWidth), Float((j + 0.5) * texelWidth));
+                Float l_k = texelWidth;
+
+                Vector2 mu_k = m_k;
+                Float sigma_k = l_k / SCALE_FACTOR;
+
+                Float H_mk = getValue(i, j) * texelWidth * vertScale;   // Assuming texelWidth doesn't affect the heightfield's shape.
+
+                Vector2 HPrime_mk(Float((getValue(i + 1, j) - getValue(i - 1, j)) / 2.0 * vertScale),
+                                    Float((getValue(i, j + 1) - getValue(i, j - 1)) / 2.0 * vertScale));
+
+                Float cInfo_k = H_mk - HPrime_mk.dot(m_k);
+                Vector2 aInfo_k = 2.0 * HPrime_mk;
+
+                gaborKernelPrimeRow.push_back(GaborKernelPrime(mu_k, sigma_k, aInfo_k, cInfo_k));
+                angularBBRow.push_back(AABB(-aInfo_k(0), -aInfo_k(0), -aInfo_k(1), -aInfo_k(1)));
+            }
+        }
+
+        int currentHeight = height;
+        int currentWidth = width;
+        for (int currentLayer = 1; currentLayer <= gaborBasis.topLayer; currentLayer++) {
+            cout << "Preprocessing heightfield: layer " << currentLayer << "..." << endl;
+            vector<vector<AABB>> angularBBLayer;
+            currentHeight >>= 1;
+            currentWidth >>= 1;
+            angularBBLayer.reserve(currentHeight);
+            for (int i = 0; i < currentHeight; i++) {
+                vector<AABB> angularBBRow;
+                angularBBRow.reserve(currentWidth);
+                for (int j = 0; j < currentWidth; j++) {
+                    AABB aabb1 = gaborBasis.angularBB[currentLayer - 1][i * 2 + 0][j * 2 + 0];
+                    AABB aabb2 = gaborBasis.angularBB[currentLayer - 1][i * 2 + 1][j * 2 + 0];
+                    AABB aabb3 = gaborBasis.angularBB[currentLayer - 1][i * 2 + 1][j * 2 + 1];
+                    AABB aabb4 = gaborBasis.angularBB[currentLayer - 1][i * 2 + 0][j * 2 + 1];
+                    angularBBRow.push_back(combineAABB(aabb1, aabb2, aabb3, aabb4));
+                }
+                angularBBLayer.push_back(angularBBRow);
+            }
+            gaborBasis.angularBB.push_back(angularBBLayer);
+        }
+
+    return gaborBasis;
 }

@@ -1,79 +1,54 @@
-#include "waveBrdf.h"
-#include "spectrum.h"
+#include "brdf.h"
 
-WaveBrdfAccel::WaveBrdfAccel(Heightfield *heightfield, string method) {
-    mHeightfield = heightfield;
-    mMethod = method;
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+#include <pybind11/eigen.h>
 
-    const int &height = mHeightfield->height;
-    const int &width = mHeightfield->width;
-    assert(height == width);
+namespace py = pybind11;
 
+PYBIND11_MODULE(brdf, m) {
+    m.def("init", [] () {
+        srand(time(NULL));
+        SpectrumInit();
+    });
 
-    mTopLayer = (int) floor(log(height * 1.0) / log(2.0) + 1e-4); // 0, 1, 2, ..., mTopLayer.
+    m.def("makeQuery", [] (double x, double y, double sigma, double omega_i_x, double omega_i_y, double lbd) {
+        Query query;
+        query.mu_p = Vector2(x, y);
+        query.sigma_p = sigma;
+        query.omega_i = Vector3(omega_i_x, omega_i_y, 1.0).normalized().head(2);
+        query.lambda = lbd;
+        return query;
+    });
 
-    cout << "Preprocessing heightfield: layer 0..." << endl;
-    angularBB.push_back(vector<vector<AABB>>());
-    vector<vector<AABB>> &angularBBLayer = angularBB.back();
-    angularBBLayer.reserve(height);
-    for (int i = 0; i < height; i++) {
-        angularBBLayer.push_back(vector<AABB>());
-        angularBBLayer.back().reserve(width);
-        gaborKernelPrime.push_back(vector<GaborKernelPrime>());
-        gaborKernelPrime.back().reserve(width);
-    }
+    py::class_<Query>(m, "Query")
+        .def_readwrite("mu_p", &Query::mu_p)
+        .def_readwrite("sigma_p", &Query::sigma_p)
+        .def_readwrite("omega_i", &Query::omega_i)
+        .def_readwrite("lambda", &Query::lambda);
 
-    #pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < height; i++) {
-        vector<GaborKernelPrime> &gaborKernelPrimeRow = gaborKernelPrime[i];
-        vector<AABB> &angularBBRow = angularBBLayer[i];
-        for (int j = 0; j < width; j++) {
-            Vector2 m_k(Float((i + 0.5) * mHeightfield->mTexelWidth), Float((j + 0.5) * mHeightfield->mTexelWidth));
-            Float l_k = mHeightfield->mTexelWidth;
+    py::class_<BrdfBase>(m, "BrdfBase")
+        .def("queryBrdf", &BrdfBase::queryBrdf)
+        .def("genBrdfImage", &BrdfBase::genBrdfImage);
 
-            Vector2 mu_k = m_k;
-            Float sigma_k = l_k / SCALE_FACTOR;
+    py::class_<GeometricBrdf>(m, "GeometricBrdf")
+        .def(py::init<>())
+        .def(py::init<Heightfield *, int>())
+        .def("genNdfImage", &GeometricBrdf::genNdfImage)
+        .def("queryBrdf", &GeometricBrdf::queryBrdf)
+        .def("genBrdfImage", &GeometricBrdf::genBrdfImage);
 
-            Float H_mk = mHeightfield->getValue(i, j) * mHeightfield->mTexelWidth * mHeightfield->mVertScale;   // Assuming mTexelWidth doesn't affect the heightfield's shape.
-
-            Vector2 HPrime_mk(Float((mHeightfield->getValue(i + 1, j) - mHeightfield->getValue(i - 1, j)) / 2.0 * mHeightfield->mVertScale),
-                              Float((mHeightfield->getValue(i, j + 1) - mHeightfield->getValue(i, j - 1)) / 2.0 * mHeightfield->mVertScale));
-
-            Float cInfo_k = H_mk - HPrime_mk.dot(m_k);
-            Vector2 aInfo_k = 2.0 * HPrime_mk;
-
-            gaborKernelPrimeRow.push_back(GaborKernelPrime(mu_k, sigma_k, cInfo_k, aInfo_k));
-            angularBBRow.push_back(AABB(-aInfo_k(0), -aInfo_k(0), -aInfo_k(1), -aInfo_k(1)));
-        }
-    }
-
-    int currentHeight = height;
-    int currentWidth = width;
-    for (int currentLayer = 1; currentLayer <= mTopLayer; currentLayer++) {
-        cout << "Preprocessing heightfield: layer " << currentLayer << "..." << endl;
-        vector<vector<AABB>> angularBBLayer;
-        currentHeight >>= 1;
-        currentWidth >>= 1;
-        angularBBLayer.reserve(currentHeight);
-        for (int i = 0; i < currentHeight; i++) {
-            vector<AABB> angularBBRow;
-            angularBBRow.reserve(currentWidth);
-            for (int j = 0; j < currentWidth; j++) {
-                AABB aabb1 = angularBB[currentLayer - 1][i * 2 + 0][j * 2 + 0];
-                AABB aabb2 = angularBB[currentLayer - 1][i * 2 + 1][j * 2 + 0];
-                AABB aabb3 = angularBB[currentLayer - 1][i * 2 + 1][j * 2 + 1];
-                AABB aabb4 = angularBB[currentLayer - 1][i * 2 + 0][j * 2 + 1];
-                angularBBRow.push_back(combineAABB(aabb1, aabb2, aabb3, aabb4));
-            }
-            angularBBLayer.push_back(angularBBRow);
-        }
-        angularBB.push_back(angularBBLayer);
-    }
+    py::class_<WaveBrdfAccel>(m, "WaveBrdfAccel")
+        .def(py::init<>())
+        .def(py::init<string, GaborBasis, int, int, Float>())
+        .def("queryIntegral", &WaveBrdfAccel::queryIntegral)
+        .def("queryBrdf", &WaveBrdfAccel::queryBrdf)
+        .def("genBrdfImage", &WaveBrdfAccel::genBrdfImage);
 }
 
 comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int yIndex) {
     Float C3 = 2.0f;
-    if (mMethod == "GHS" || mMethod == "RGHS" || mMethod == "Kirchhoff") {
+    if (method == "GHS" || method == "RGHS" || method == "Kirchhoff") {
         Float oDotN = sqrt(abs(1.0f - query.omega_o.dot(query.omega_o)));
         Float iDotN = sqrt(abs(1.0f - query.omega_i.dot(query.omega_i)));
         C3 = oDotN + iDotN;
@@ -81,28 +56,28 @@ comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int
 
     if (layer == 0) {
         Vector2 omega_a = (query.omega_i + query.omega_o) / 2.0;
-        Vector2 m_k(Float((xIndex + 0.5) * mHeightfield->mTexelWidth), Float((yIndex + 0.5) * mHeightfield->mTexelWidth));
+        Vector2 m_k(Float((xIndex + 0.5) * texelWidth), Float((yIndex + 0.5) * texelWidth));
 
-        Float period = mHeightfield->mTexelWidth * mHeightfield->height;
+        Float period = texelWidth * height;
         Float pDistSqr = distSqrPeriod(m_k, query.mu_p, period);
         if (pDistSqr > (3.0 * query.sigma_p) * (3.0 * query.sigma_p))
             return comp(Float(0.0), Float(0.0));
 
         Vector2 uQuery = 2.0 * omega_a / query.lambda;
-        AABB &aabb = angularBB[layer][xIndex][yIndex];
+        AABB &aabb = gaborBasis.angularBB[layer][xIndex][yIndex];
         Vector2 abLambda(aabb.xMin / query.lambda, aabb.yMin / query.lambda);
         
         abLambda *= C3 / 2.0f;
 
-        Float sigma_k = mHeightfield->mTexelWidth / SCALE_FACTOR;
+        Float sigma_k = texelWidth / SCALE_FACTOR;
         Float aSigma = 1.0 / (2.0 * M_PI * sigma_k);
         Float aDistSqr = (abLambda - uQuery).squaredNorm();
         if (aDistSqr > (3.0 * aSigma) * (3.0 * aSigma))
             return comp(Float(0.0), Float(0.0));
 
         Float C2 = 1.0f;
-        if (mMethod == "Kirchhoff") {
-            Vector2 HPrime = gaborKernelPrime[xIndex][yIndex].aInfo / 2.0f;
+        if (method == "Kirchhoff") {
+            Vector2 HPrime = gaborBasis.gaborKernelPrime[xIndex][yIndex].aInfo / 2.0f;
             Vector3 m(-HPrime(0), -HPrime(1), 1.0);
             m.normalize();
 
@@ -114,7 +89,7 @@ comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int
             C2 = (omega_o + omega_i).dot(m) / m(2);
         }
 
-        GaborKernelPrime gp = gaborKernelPrime[xIndex][yIndex];
+        GaborKernelPrime gp = gaborBasis.gaborKernelPrime[xIndex][yIndex];
         gp.aInfo *= C3 / 2.0f;
         gp.cInfo *= C3 / 2.0f;
 
@@ -125,24 +100,24 @@ comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int
 
     // Reject the node positionally.
     int layerScale = floor(pow(2.0, layer) + 1e-4);
-    AABB positionalBB((xIndex + 0.0) * layerScale * mHeightfield->mTexelWidth,
-                      (xIndex + 1.0) * layerScale * mHeightfield->mTexelWidth,
-                      (yIndex + 0.0) * layerScale * mHeightfield->mTexelWidth,
-                      (yIndex + 1.0) * layerScale * mHeightfield->mTexelWidth);
+    AABB positionalBB((xIndex + 0.0) * layerScale * texelWidth,
+                      (xIndex + 1.0) * layerScale * texelWidth,
+                      (yIndex + 0.0) * layerScale * texelWidth,
+                      (yIndex + 1.0) * layerScale * texelWidth);
     AABB queryBB(query.mu_p(0) - 3.0 * query.sigma_p, query.mu_p(0) + 3.0 * query.sigma_p,
                  query.mu_p(1) - 3.0 * query.sigma_p, query.mu_p(1) + 3.0 * query.sigma_p);
-    Float period = mHeightfield->mTexelWidth * mHeightfield->height;
+    Float period = texelWidth * height;
     if (!intersectAABBRot(positionalBB, queryBB, period))
         return comp(Float(0.0), Float(0.0));
 
     // Reject the node angularly.
     Vector2 omega_a = (query.omega_i + query.omega_o) / 2.0;
     Vector2 uQuery = 2.0 * omega_a / query.lambda;
-    AABB &aabb = angularBB[layer][xIndex][yIndex];
+    AABB &aabb = gaborBasis.angularBB[layer][xIndex][yIndex];
     AABB aabbLambda(aabb.xMin * C3 / 2.0f / query.lambda, aabb.xMax * C3 / 2.0f / query.lambda,
                     aabb.yMin * C3 / 2.0f / query.lambda, aabb.yMax * C3 / 2.0f / query.lambda);
 
-    Float sigma_k = mHeightfield->mTexelWidth / SCALE_FACTOR;
+    Float sigma_k = texelWidth / SCALE_FACTOR;
     Float sigma = 1.0 / (2.0 * M_PI * sigma_k);
 
     AABB aabbLambdaExpanded(aabbLambda.xMin - sigma * 3.0,
@@ -162,57 +137,62 @@ comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int
 Float WaveBrdfAccel::queryBrdf(const Query &query) {
     // Move the query center to the first HF period.
     Query q = query;
-    Float hfHeightWorld = mHeightfield->mTexelWidth * mHeightfield->height;
-    Float hfWidthWorld = mHeightfield->mTexelWidth * mHeightfield->width;
+    Float hfHeightWorld = texelWidth * height;
+    Float hfWidthWorld = texelWidth * width;
     q.mu_p(0) -= ((int) floor(q.mu_p(0) / hfHeightWorld)) * hfHeightWorld;
     q.mu_p(1) -= ((int) floor(q.mu_p(1) / hfWidthWorld)) * hfWidthWorld;
 
     // Traverse the hierarchy to calculate the inner integral.
-    comp I = queryIntegral(q, mTopLayer, 0, 0);
+    comp I = queryIntegral(q, gaborBasis.topLayer, 0, 0);
 
     // Update corresponding C1, C2 and C3 based on different diffraction models.
     Float oDotN = sqrt(abs(1.0f - query.omega_o.dot(query.omega_o)));
     Float iDotN = sqrt(abs(1.0f - query.omega_i.dot(query.omega_i)));
     Float C1 = 0.0f;
 
-    if (mMethod == "OHS" || mMethod == "GHS")
+    // if (method == "OHS" || method == "GHS") {
         C1 = oDotN / (query.lambda * query.lambda * iDotN);
-    else if (mMethod == "ROHS" || mMethod == "RGHS")
-        C1 = (iDotN + oDotN) * (iDotN + oDotN) / (query.lambda * query.lambda * 4.0f * iDotN * oDotN);
-    else if (mMethod == "Kirchhoff")
-        C1 = 1.0f / (query.lambda * query.lambda * 4.0f * iDotN * oDotN);
-
+    // }
+        
+    // else if (method == "ROHS" || method == "RGHS")
+    //     C1 = (iDotN + oDotN) * (iDotN + oDotN) / (query.lambda * query.lambda * 4.0f * iDotN * oDotN);
+    // else if (method == "Kirchhoff")
+    //     C1 = 1.0f / (query.lambda * query.lambda * 4.0f * iDotN * oDotN);
     return C1 * pow(abs(I), 2.0f);
 }
 
-double* WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
-    double *brdfImage = new double[resolution * resolution * 3];
+MatrixXf WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
+    MatrixXf brdfImage_r(resolution, resolution);
+    MatrixXf brdfImage_g(resolution, resolution);
+    MatrixXf brdfImage_b(resolution, resolution);
 
     if (query.lambda != 0.0) {
-         // Single wavelength.
-         #pragma omp parallel for schedule(dynamic)
-         for (int i = 0; i < resolution; i++) {
-             printf("Generating BRDF image: row %d...\n", i);
-             for (int j = 0; j < resolution; j++) {
-                 Vector2 omega_o((i + 0.5) / resolution * 2.0 - 1.0,
-                                 (j + 0.5) / resolution * 2.0 - 1.0);
-                 Float brdfValue;
-                 if (omega_o.norm() > 1.0) {
-                     brdfValue = 0.0;
-                 } else {
-                     Query q = query;
-                     q.omega_o = omega_o;
-                     brdfValue = queryBrdf(q);
-                 }
+        // Single wavelength.
+        #pragma omp parallel for schedule(dynamic)
+        for (int i = 0; i < resolution; i++) {
+            printf("Generating BRDF image: row %d...\n", i);
+            for (int j = 0; j < resolution; j++) {
+                Vector2 omega_o((i + 0.5) / resolution * 2.0 - 1.0,
+                                (j + 0.5) / resolution * 2.0 - 1.0);
+                Float brdfValue;
 
-                 if (std::isnan(brdfValue))
-                     brdfValue = 0.0;
+                if (omega_o.norm() > 1.0) {
+                   brdfValue = 0.0;
+                } else {
+                    Query q = query;
+                    q.omega_o = omega_o;
+                    brdfValue = queryBrdf(q);
+                }
 
-                 brdfImage[(i * resolution + j) * 3 + 0] = brdfValue;
-                 brdfImage[(i * resolution + j) * 3 + 1] = brdfValue;
-                 brdfImage[(i * resolution + j) * 3 + 2] = brdfValue;
-             }
-         }
+                if (std::isnan(brdfValue)) {
+                    brdfValue = 0.0;
+                }
+
+                brdfImage_r(i, j) = brdfValue;
+                brdfImage_g(i, j) = brdfValue;
+                brdfImage_b(i, j) = brdfValue;
+            }
+        }
     } else {
         // Multiple wavelengths.
         #pragma omp parallel for schedule(dynamic)
@@ -227,6 +207,7 @@ double* WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
                 for (int k = 0; k < SPECTRUM_SAMPLES; k++) {
 
                     Float brdfValue;
+
                     if (omega_o.norm() > 1.0) {
                         brdfValue = 0.0;
                     } else {
@@ -245,24 +226,13 @@ double* WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
                 float r, g, b;
                 SpectrumToRGB(spectrumSamples, r, g, b);
 
-                brdfImage[(i * resolution + j) * 3 + 0] = r;
-                brdfImage[(i * resolution + j) * 3 + 1] = g;
-                brdfImage[(i * resolution + j) * 3 + 2] = b;
+                brdfImage_r(i, j) = r;
+                brdfImage_g(i, j) = g;
+                brdfImage_b(i, j) = b;
             }
         }
     }
-
-    return brdfImage;
-}
-
-Float WaveBrdf::queryBrdf(const Query &query) {
-    cout << "Not implemented" << endl;
-    return 0.0;
-}
-
-double* WaveBrdf::genBrdfImage(const Query &query, int resolution) {
-    cout << "Not implemented" << endl;
-    return NULL;
+    return brdfImage_r, brdfImage_g, brdfImage_b;
 }
 
 Float GeometricBrdf::queryBrdf(const Query &query) {
@@ -278,8 +248,8 @@ inline Vector2 sampleGauss2d(Float r1, Float r2) {
     return Vector2(x, y);
 }
 
-double* GeometricBrdf::genNdfImage(const Query &query, int resolution) {
-    int N = (int) std::sqrt(mSampleNum);
+MatrixXf GeometricBrdf::genNdfImage(const Query &query, int resolution) {
+    int N = (int) std::sqrt(sampleNum);
     const Float intrinsicRoughness = Float(1) / N;
     int *inds = new int[N * N];
 
@@ -292,9 +262,9 @@ double* GeometricBrdf::genNdfImage(const Query &query, int resolution) {
             Vector2 g = sampleGauss2d(rx, ry);
 
             // look up normal
-            Vector2 x = g * query.sigma_p / mHeightfield->mTexelWidth;
+            Vector2 x = g * query.sigma_p / heightfield->texelWidth;
             x += query.mu_p;
-            Vector2 normal = mHeightfield->n(x[0], x[1]);
+            Vector2 normal = heightfield->n(x[0], x[1]);
 
             // intrinsic roughness
             normal += intrinsicRoughness * sampleGauss2d(randUniform<Float>(), randUniform<Float>());
@@ -318,20 +288,28 @@ double* GeometricBrdf::genNdfImage(const Query &query, int resolution) {
 
     delete[] inds;
     delete[] bins;
-    return (double*) ndfImage;
+    double* ndfIm = (double*) ndfImage;
+
+    MatrixXf values(heightfield->width, heightfield->height);
+    for (int i = 0; i < heightfield->height; i++) {
+        for (int j = 0; j < heightfield->width; j++) {
+            values(i, j) = ndfIm[i * heightfield->width + j];
+        }
+    }
+
+    return values;
 }
 
-double* GeometricBrdf::genBrdfImage(const Query &query, int resolution) {
+MatrixXf GeometricBrdf::genBrdfImage(const Query &query, int resolution) {
     const int ndfResolution = resolution * 2;
-    double *ndfImage = genNdfImage(query, ndfResolution);
+    MatrixXf ndfImage = genNdfImage(query, ndfResolution);
 
-    double *brdfImage = new double[resolution * resolution * 3];
+    MatrixXf brdfImage_r(resolution, resolution);
+    MatrixXf brdfImage_g(resolution, resolution);
+    MatrixXf brdfImage_b(resolution, resolution);
+
     for (int i = 0; i < resolution; i++) {
         for (int j = 0; j < resolution; j++) {
-            brdfImage[(i * resolution + j) * 3 + 0] = 0.0;
-            brdfImage[(i * resolution + j) * 3 + 1] = 0.0;
-            brdfImage[(i * resolution + j) * 3 + 2] = 0.0;
-
             const int numSamples = 16;
             for (int k = 0; k < numSamples; k++) {
                 Vector2 omega_o((i + randUniform<Float>()) / resolution * 2.0 - 1.0,
@@ -349,7 +327,7 @@ double* GeometricBrdf::genBrdfImage(const Query &query, int resolution) {
                     yInt < 0 || yInt >= ndfResolution)
                     continue;
 
-                Float D = ndfImage[(xInt * ndfResolution + yInt) * 3 + 0];
+                Float D = ndfImage(xInt, yInt);
                 Float F = 1.0;
                 Float G = 1.0;
                 Float cosThetaI = sqrt(abs(1.0 - query.omega_i.dot(query.omega_i)));
@@ -359,13 +337,12 @@ double* GeometricBrdf::genBrdfImage(const Query &query, int resolution) {
                 if (std::isnan(brdfValue / numSamples))
                     continue;
 
-                brdfImage[(i * resolution + j) * 3 + 0] += brdfValue / numSamples;
-                brdfImage[(i * resolution + j) * 3 + 1] += brdfValue / numSamples;
-                brdfImage[(i * resolution + j) * 3 + 2] += brdfValue / numSamples;
+                brdfImage_r(i, j) += brdfValue / numSamples;
+                brdfImage_g(i, j) += brdfValue / numSamples;
+                brdfImage_b(i, j) += brdfValue / numSamples;
             }
         }
     }
 
-    delete[] ndfImage;
-    return brdfImage;
+    return brdfImage_r, brdfImage_g, brdfImage_b;
 }
