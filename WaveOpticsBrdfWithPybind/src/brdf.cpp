@@ -27,6 +27,11 @@ PYBIND11_MODULE(brdf, m) {
         .def_readwrite("omega_i", &Query::omega_i)
         .def_readwrite("lambda", &Query::lambda);
 
+    py::class_<BrdfImage>(m, "BrdfImage")
+        .def_readwrite("r", &BrdfImage::r)
+        .def_readwrite("g", &BrdfImage::g)
+        .def_readwrite("b", &BrdfImage::b);
+
     py::class_<BrdfBase>(m, "BrdfBase")
         .def("queryBrdf", &BrdfBase::queryBrdf)
         .def("genBrdfImage", &BrdfBase::genBrdfImage);
@@ -48,7 +53,7 @@ PYBIND11_MODULE(brdf, m) {
 
 comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int yIndex) {
     Float C3 = 2.0f;
-    if (method == "GHS" || method == "RGHS" || method == "Kirchhoff") {
+    if (diff_model == "GHS" || diff_model == "RGHS" || diff_model == "Kirchhoff") {
         Float oDotN = sqrt(abs(1.0f - query.omega_o.dot(query.omega_o)));
         Float iDotN = sqrt(abs(1.0f - query.omega_i.dot(query.omega_i)));
         C3 = oDotN + iDotN;
@@ -76,7 +81,7 @@ comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int
             return comp(Float(0.0), Float(0.0));
 
         Float C2 = 1.0f;
-        if (method == "Kirchhoff") {
+        if (diff_model == "Kirchhoff") {
             Vector2 HPrime = gaborBasis.gaborKernelPrime[xIndex][yIndex].aInfo / 2.0f;
             Vector3 m(-HPrime(0), -HPrime(1), 1.0);
             m.normalize();
@@ -150,18 +155,17 @@ Float WaveBrdfAccel::queryBrdf(const Query &query) {
     Float iDotN = sqrt(abs(1.0f - query.omega_i.dot(query.omega_i)));
     Float C1 = 0.0f;
 
-    // if (method == "OHS" || method == "GHS") {
+    if (diff_model == "OHS" || diff_model == "GHS") {
         C1 = oDotN / (query.lambda * query.lambda * iDotN);
-    // }
-        
-    // else if (method == "ROHS" || method == "RGHS")
-    //     C1 = (iDotN + oDotN) * (iDotN + oDotN) / (query.lambda * query.lambda * 4.0f * iDotN * oDotN);
-    // else if (method == "Kirchhoff")
-    //     C1 = 1.0f / (query.lambda * query.lambda * 4.0f * iDotN * oDotN);
+    } else if (diff_model == "ROHS" || diff_model == "RGHS") {
+        C1 = (iDotN + oDotN) * (iDotN + oDotN) / (query.lambda * query.lambda * 4.0f * iDotN * oDotN);
+    } else if (diff_model == "Kirchhoff") {
+        C1 = 1.0f / (query.lambda * query.lambda * 4.0f * iDotN * oDotN);
+    }
     return C1 * pow(abs(I), 2.0f);
 }
 
-MatrixXf WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
+BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
     MatrixXf brdfImage_r(resolution, resolution);
     MatrixXf brdfImage_g(resolution, resolution);
     MatrixXf brdfImage_b(resolution, resolution);
@@ -205,7 +209,6 @@ MatrixXf WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
                 vector<float> spectrumSamples;
 
                 for (int k = 0; k < SPECTRUM_SAMPLES; k++) {
-
                     Float brdfValue;
 
                     if (omega_o.norm() > 1.0) {
@@ -232,7 +235,13 @@ MatrixXf WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
             }
         }
     }
-    return brdfImage_r, brdfImage_g, brdfImage_b;
+    
+    BrdfImage brdfImage;
+    brdfImage.r = brdfImage_r;
+    brdfImage.g = brdfImage_g;
+    brdfImage.b = brdfImage_b;
+
+    return brdfImage;
 }
 
 Float GeometricBrdf::queryBrdf(const Query &query) {
@@ -300,13 +309,14 @@ MatrixXf GeometricBrdf::genNdfImage(const Query &query, int resolution) {
     return values;
 }
 
-MatrixXf GeometricBrdf::genBrdfImage(const Query &query, int resolution) {
+BrdfImage GeometricBrdf::genBrdfImage(const Query &query, int resolution) {
     const int ndfResolution = resolution * 2;
     MatrixXf ndfImage = genNdfImage(query, ndfResolution);
 
-    MatrixXf brdfImage_r(resolution, resolution);
-    MatrixXf brdfImage_g(resolution, resolution);
-    MatrixXf brdfImage_b(resolution, resolution);
+    BrdfImage brdfImage;
+    brdfImage.r = MatrixXf(resolution, resolution);
+    brdfImage.g = MatrixXf(resolution, resolution);
+    brdfImage.b = MatrixXf(resolution, resolution);
 
     for (int i = 0; i < resolution; i++) {
         for (int j = 0; j < resolution; j++) {
@@ -337,12 +347,12 @@ MatrixXf GeometricBrdf::genBrdfImage(const Query &query, int resolution) {
                 if (std::isnan(brdfValue / numSamples))
                     continue;
 
-                brdfImage_r(i, j) += brdfValue / numSamples;
-                brdfImage_g(i, j) += brdfValue / numSamples;
-                brdfImage_b(i, j) += brdfValue / numSamples;
+                brdfImage.r(i, j) += brdfValue / numSamples;
+                brdfImage.g(i, j) += brdfValue / numSamples;
+                brdfImage.b(i, j) += brdfValue / numSamples;
             }
         }
     }
 
-    return brdfImage_r, brdfImage_g, brdfImage_b;
+    return brdfImage;
 }

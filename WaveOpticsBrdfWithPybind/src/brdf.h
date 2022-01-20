@@ -24,13 +24,19 @@ struct Query {
     Float lambda;   // in microns.
 };
 
+struct BrdfImage {
+    MatrixXf r;
+    MatrixXf g;
+    MatrixXf b;
+};
+
 class BrdfBase {
     public:
         BrdfBase() {}
 
     public:
         virtual Float queryBrdf(const Query &query) = 0;
-        virtual MatrixXf genBrdfImage(const Query &query, int resolution) = 0;
+        virtual BrdfImage genBrdfImage(const Query &query, int resolution) = 0;
 
     protected:
 };
@@ -42,7 +48,7 @@ class GeometricBrdf: public BrdfBase {
 
         MatrixXf genNdfImage(const Query &query, int resolution);
         virtual Float queryBrdf(const Query &query);
-        virtual MatrixXf genBrdfImage(const Query &query, int resolution);
+        virtual BrdfImage genBrdfImage(const Query &query, int resolution);
 
     protected:
         Heightfield *heightfield;
@@ -54,15 +60,15 @@ class GeometricBrdf: public BrdfBase {
 class WaveBrdfAccel: public BrdfBase {
     public:
         WaveBrdfAccel() {}
-        WaveBrdfAccel(string method, GaborBasis gaborBasis, int width, int height, Float texelWidth)
-                        : method(method), gaborBasis(gaborBasis), width(width), height(height), texelWidth(texelWidth) {}
+        WaveBrdfAccel(string diff_model, GaborBasis gaborBasis, int width, int height, Float texelWidth)
+                        : diff_model(diff_model), gaborBasis(gaborBasis), width(width), height(height), texelWidth(texelWidth) {}
 
         comp queryIntegral(const Query &query, int layer, int xIndex, int yIndex);
         virtual Float queryBrdf(const Query &query);
-        virtual MatrixXf genBrdfImage(const Query &query, int resolution);
+        virtual BrdfImage genBrdfImage(const Query &query, int resolution);
 
     public:
-        string method;
+        string diff_model;
 
     private:
         int width, height;

@@ -3,7 +3,7 @@ from options import args
 from WaveOpticsBrdfWithPybind.exrimage import EXRImage
 from WaveOpticsBrdfWithPybind.heightfield import Heightfield, GaborBasis
 from WaveOpticsBrdfWithPybind.gaborkernel import GaborKernel, GaborKernelPrime
-from WaveOpticsBrdfWithPybind.brdf import init, makeQuery, Query, BrdfBase, GeometricBrdf, WaveBrdfAccel
+from WaveOpticsBrdfWithPybind.brdf import init, makeQuery, Query, BrdfImage, BrdfBase, GeometricBrdf, WaveBrdfAccel
 
 init()
 
@@ -21,7 +21,7 @@ print(gaborBasis.gaborKernelPrime[500][450].cInfo)
 
 query = makeQuery(args.x, args.y, args.sigma, args.lambda_, args.light_x, args.light_y)
 
-brdf = WaveBrdfAccel(args.method, gaborBasis, refHeightfield.width, refHeightfield.height, refHeightfield.texelWidth)
+brdf = WaveBrdfAccel(args.diff_model, gaborBasis, refHeightfield.width, refHeightfield.height, refHeightfield.texelWidth)
 result = brdf.genBrdfImage(query, args.resolution)
-print(result[200][200])
-EXRImage.writeImage(result, args.resolution, args.resolution, args.save_path)
+
+EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, args.save_path)

@@ -12,6 +12,7 @@ PYBIND11_MODULE(heightfield, m) {
     py::class_<Heightfield>(m, "Heightfield")
         .def(py::init<>())
         .def(py::init<MatrixXf, int, int, Float, Float>())
+        .def(py::init<GaborBasis>())
         .def_readwrite("width", &Heightfield::width)
         .def_readwrite("height", &Heightfield::height)
         .def_readwrite("values", &Heightfield::values)
@@ -45,6 +46,10 @@ Float A_inv[16][16] = {{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
                        {0, 0, 0, 0, 2, 0, -2, 0, 0, 0, 0, 0, 1, 0, 1, 0},
                        {-6, 6, 6, -6, -4, -2, 4, 2, -3, 3, -3, 3, -2, -1, -2, -1},
                        {4, -4, -4, 4, 2, 2, -2, -2, 2, -2, 2, -2, 1, 1, 1, 1}};
+
+Heightfield::Heightfield(GaborBasis gaborBasis) {
+
+}
 
 void Heightfield::computeCoeff(Float *alpha, const Float *x) {
     memset(alpha, 0, sizeof(Float) * 16);
@@ -99,7 +104,7 @@ GaborKernel Heightfield::g(int i, int j, Float F, Float lambda) {
     Vector2 mu_k = m_k;
     Float sigma_k = l_k / SCALE_FACTOR;
 
-    Float H_mk = getValue(i + 0.5, j + 0.5) * texelWidth * vertScale;   // Assuming mTexelWidth doesn't affect the heightfield's shape.
+    Float H_mk = getValue(i + 0.5, j + 0.5) * texelWidth * vertScale;   // Assuming texelWidth doesn't affect the heightfield's shape.
     Vector2 HPrime_mk(Float((getValue(i + 1, j) - getValue(i, j)) * vertScale),
                       Float((getValue(i, j + 1) - getValue(i, j)) * vertScale));
 
