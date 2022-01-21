@@ -17,8 +17,6 @@ refGaborBasis = refHeightfield.toGaborBasis()
 refResult = brdfFunction.genBrdfImage(query, refGaborBasis)
 EXRImage.writeImageRGB(refResult.r, refResult.g, refResult.b, args.resolution, args.resolution, "Results/RefBrdf.exr")
 
-# Test transformation
-
 # Generate hypothesis
 gaborBasis = refGaborBasis
 
