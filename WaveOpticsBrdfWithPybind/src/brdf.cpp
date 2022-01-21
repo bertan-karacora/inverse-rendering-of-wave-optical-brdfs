@@ -32,10 +32,6 @@ PYBIND11_MODULE(brdf, m) {
         .def_readwrite("g", &BrdfImage::g)
         .def_readwrite("b", &BrdfImage::b);
 
-    py::class_<BrdfBase>(m, "BrdfBase")
-        .def("queryBrdf", &BrdfBase::queryBrdf)
-        .def("genBrdfImage", &BrdfBase::genBrdfImage);
-
     py::class_<GeometricBrdf>(m, "GeometricBrdf")
         .def(py::init<>())
         .def(py::init<Heightfield *, int>())
@@ -45,13 +41,13 @@ PYBIND11_MODULE(brdf, m) {
 
     py::class_<WaveBrdfAccel>(m, "WaveBrdfAccel")
         .def(py::init<>())
-        .def(py::init<string, GaborBasis, int, int, Float>())
+        .def(py::init<string, int, int, Float, int>())
         .def("queryIntegral", &WaveBrdfAccel::queryIntegral)
         .def("queryBrdf", &WaveBrdfAccel::queryBrdf)
         .def("genBrdfImage", &WaveBrdfAccel::genBrdfImage);
 }
 
-comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int yIndex) {
+comp WaveBrdfAccel::queryIntegral(const Query &query, const GaborBasis &gaborBasis, int layer, int xIndex, int yIndex) {
     Float C3 = 2.0f;
     if (diff_model == "GHS" || diff_model == "RGHS" || diff_model == "Kirchhoff") {
         Float oDotN = sqrt(abs(1.0f - query.omega_o.dot(query.omega_o)));
@@ -69,7 +65,7 @@ comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int
             return comp(Float(0.0), Float(0.0));
 
         Vector2 uQuery = 2.0 * omega_a / query.lambda;
-        AABB &aabb = gaborBasis.angularBB[layer][xIndex][yIndex];
+        AABB aabb = gaborBasis.angularBB[layer][xIndex][yIndex];
         Vector2 abLambda(aabb.xMin / query.lambda, aabb.yMin / query.lambda);
         
         abLambda *= C3 / 2.0f;
@@ -118,7 +114,7 @@ comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int
     // Reject the node angularly.
     Vector2 omega_a = (query.omega_i + query.omega_o) / 2.0;
     Vector2 uQuery = 2.0 * omega_a / query.lambda;
-    AABB &aabb = gaborBasis.angularBB[layer][xIndex][yIndex];
+    AABB aabb = gaborBasis.angularBB[layer][xIndex][yIndex];
     AABB aabbLambda(aabb.xMin * C3 / 2.0f / query.lambda, aabb.xMax * C3 / 2.0f / query.lambda,
                     aabb.yMin * C3 / 2.0f / query.lambda, aabb.yMax * C3 / 2.0f / query.lambda);
 
@@ -133,13 +129,13 @@ comp WaveBrdfAccel::queryIntegral(const Query &query, int layer, int xIndex, int
     if (!insideAABB(aabbLambdaExpanded, uQuery))
         return comp(Float(0.0), Float(0.0));
 
-    return queryIntegral(query, layer - 1, xIndex * 2 + 0, yIndex * 2 + 0) +
-           queryIntegral(query, layer - 1, xIndex * 2 + 1, yIndex * 2 + 0) +
-           queryIntegral(query, layer - 1, xIndex * 2 + 1, yIndex * 2 + 1) +
-           queryIntegral(query, layer - 1, xIndex * 2 + 0, yIndex * 2 + 1);
+    return queryIntegral(query, gaborBasis, layer - 1, xIndex * 2 + 0, yIndex * 2 + 0) +
+           queryIntegral(query, gaborBasis, layer - 1, xIndex * 2 + 1, yIndex * 2 + 0) +
+           queryIntegral(query, gaborBasis, layer - 1, xIndex * 2 + 1, yIndex * 2 + 1) +
+           queryIntegral(query, gaborBasis, layer - 1, xIndex * 2 + 0, yIndex * 2 + 1);
 }
 
-Float WaveBrdfAccel::queryBrdf(const Query &query) {
+Float WaveBrdfAccel::queryBrdf(const Query &query, const GaborBasis &gaborBasis) {
     // Move the query center to the first HF period.
     Query q = query;
     Float hfHeightWorld = texelWidth * height;
@@ -148,7 +144,7 @@ Float WaveBrdfAccel::queryBrdf(const Query &query) {
     q.mu_p(1) -= ((int) floor(q.mu_p(1) / hfWidthWorld)) * hfWidthWorld;
 
     // Traverse the hierarchy to calculate the inner integral.
-    comp I = queryIntegral(q, gaborBasis.topLayer, 0, 0);
+    comp I = queryIntegral(q, gaborBasis, gaborBasis.topLayer, 0, 0);
 
     // Update corresponding C1, C2 and C3 based on different diffraction models.
     Float oDotN = sqrt(abs(1.0f - query.omega_o.dot(query.omega_o)));
@@ -165,7 +161,7 @@ Float WaveBrdfAccel::queryBrdf(const Query &query) {
     return C1 * pow(abs(I), 2.0f);
 }
 
-BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
+BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, const GaborBasis &gaborBasis) {
     MatrixXf brdfImage_r(resolution, resolution);
     MatrixXf brdfImage_g(resolution, resolution);
     MatrixXf brdfImage_b(resolution, resolution);
@@ -185,7 +181,7 @@ BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
                 } else {
                     Query q = query;
                     q.omega_o = omega_o;
-                    brdfValue = queryBrdf(q);
+                    brdfValue = queryBrdf(q, gaborBasis);
                 }
 
                 if (std::isnan(brdfValue)) {
@@ -217,7 +213,7 @@ BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, int resolution) {
                         Query q = query;
                         q.omega_o = omega_o;
                         q.lambda = (k + 0.5) / SPECTRUM_SAMPLES * (0.83 - 0.36) + 0.36;
-                        brdfValue = queryBrdf(q);
+                        brdfValue = queryBrdf(q, gaborBasis);
                     }
 
                     if (std::isnan(brdfValue))

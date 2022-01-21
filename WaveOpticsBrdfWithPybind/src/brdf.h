@@ -30,25 +30,14 @@ struct BrdfImage {
     MatrixXf b;
 };
 
-class BrdfBase {
-    public:
-        BrdfBase() {}
-
-    public:
-        virtual Float queryBrdf(const Query &query) = 0;
-        virtual BrdfImage genBrdfImage(const Query &query, int resolution) = 0;
-
-    protected:
-};
-
-class GeometricBrdf: public BrdfBase {
+class GeometricBrdf {
     public:
         GeometricBrdf() {}
         GeometricBrdf(Heightfield *heightfield, int sampleNum = 10000000) : heightfield(heightfield), sampleNum(sampleNum) {}
 
         MatrixXf genNdfImage(const Query &query, int resolution);
-        virtual Float queryBrdf(const Query &query);
-        virtual BrdfImage genBrdfImage(const Query &query, int resolution);
+        Float queryBrdf(const Query &query);
+        BrdfImage genBrdfImage(const Query &query, int resolution);
 
     protected:
         Heightfield *heightfield;
@@ -57,23 +46,21 @@ class GeometricBrdf: public BrdfBase {
         int sampleNum;
 };
 
-class WaveBrdfAccel: public BrdfBase {
+class WaveBrdfAccel {
     public:
         WaveBrdfAccel() {}
-        WaveBrdfAccel(string diff_model, GaborBasis gaborBasis, int width, int height, Float texelWidth)
-                        : diff_model(diff_model), gaborBasis(gaborBasis), width(width), height(height), texelWidth(texelWidth) {}
+        WaveBrdfAccel(string diff_model, int width, int height, Float texelWidth, int resolution)
+                        : diff_model(diff_model), width(width), height(height), texelWidth(texelWidth), resolution(resolution) {}
 
-        comp queryIntegral(const Query &query, int layer, int xIndex, int yIndex);
-        virtual Float queryBrdf(const Query &query);
-        virtual BrdfImage genBrdfImage(const Query &query, int resolution);
+        comp queryIntegral(const Query &query, const GaborBasis &gaborBasis, int layer, int xIndex, int yIndex);
+        Float queryBrdf(const Query &query, const GaborBasis &gaborBasis);
+        BrdfImage genBrdfImage(const Query &query, const GaborBasis &gaborBasis);
 
     public:
         string diff_model;
-
-    private:
         int width, height;
         Float texelWidth;
-        GaborBasis gaborBasis;
+        int resolution;
 };
 
 #endif
