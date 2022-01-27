@@ -36,7 +36,6 @@ PYBIND11_MODULE(brdf, m) {
         .def(py::init<>())
         .def(py::init<Heightfield *, int>())
         .def("genNdfImage", &GeometricBrdf::genNdfImage)
-        .def("queryBrdf", &GeometricBrdf::queryBrdf)
         .def("genBrdfImage", &GeometricBrdf::genBrdfImage);
 
     py::class_<WaveBrdfAccel>(m, "WaveBrdfAccel")
@@ -238,11 +237,6 @@ BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, const GaborBasis &gabo
     brdfImage.b = brdfImage_b;
 
     return brdfImage;
-}
-
-Float GeometricBrdf::queryBrdf(const Query &query) {
-    cout << "Not implemented" << endl;
-    return 0.0;
 }
 
 inline Vector2 sampleGauss2d(Float r1, Float r2) {

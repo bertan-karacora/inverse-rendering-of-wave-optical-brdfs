@@ -36,7 +36,6 @@ class GeometricBrdf {
         GeometricBrdf(Heightfield *heightfield, int sampleNum = 10000000) : heightfield(heightfield), sampleNum(sampleNum) {}
 
         MatrixXf genNdfImage(const Query &query, int resolution);
-        Float queryBrdf(const Query &query);
         BrdfImage genBrdfImage(const Query &query, int resolution);
 
     protected:
