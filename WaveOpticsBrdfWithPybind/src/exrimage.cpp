@@ -4,6 +4,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/eigen.h>
 
+using namespace std;
 using namespace Eigen;
 namespace py = pybind11;
 
@@ -24,6 +25,7 @@ EXRImage::EXRImage(const char *filename) {
 }
 
 void EXRImage::readImage(const char *filename) {
+    cout << "Reading image..." << endl;
     RgbaInputFile file(filename);
     Imath::Box2i dw = file.dataWindow();
     width = dw.max.x - dw.min.x + 1;
@@ -39,9 +41,13 @@ void EXRImage::readImage(const char *filename) {
             values(i, j) = image[i][j].r;
         }
     }
+    
+    cout << "Reading image finished" << endl;
 }
 
 string EXRImage::writeImageRGB(const MatrixXf r_image, const MatrixXf g_image, const MatrixXf b_image, int outputWidth, int outputHeight, string filename) {
+    cout << "Writing image..." << endl;
+    
     Rgba *pixels = new Rgba[outputHeight * outputWidth];
 
     // Write to image
@@ -59,6 +65,7 @@ string EXRImage::writeImageRGB(const MatrixXf r_image, const MatrixXf g_image, c
     file.writePixels(outputHeight);
 
     delete[] pixels;
+    cout << "Writing image finished. Image saved to " << filename << endl;
     return filename;
 }
 

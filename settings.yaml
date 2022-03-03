@@ -1,1 +1,3 @@
-config: ''
+config: 'settings.yaml'
+reference_path: 'Heightfields/scratched.exr'
+resolution: 256

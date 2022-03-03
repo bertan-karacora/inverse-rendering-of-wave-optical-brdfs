@@ -1,8 +1,7 @@
+.*
+__*
+
 *.o
 *.so
 *.exr
-.*
 *.zip
-genBrdf
-**/results
-__pycache__

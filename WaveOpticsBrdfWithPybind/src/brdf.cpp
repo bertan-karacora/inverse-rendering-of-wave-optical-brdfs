@@ -4,20 +4,31 @@
 #include <pybind11/numpy.h>
 #include <pybind11/eigen.h>
 
+#include <enoki/cuda.h>
+#include <enoki/autodiff.h>
+
 namespace py = pybind11;
 
+using FloatC   = enoki::CUDAArray<float>;
+using FloatD   = enoki::DiffArray<FloatC>;
+using Color3fD = enoki::Array<FloatD, 3>;
+
 PYBIND11_MODULE(brdf, m) {
-    m.def("init", [] () {
+    m.def("initialize", [] () {
+        cout << "Initalizing..." << endl;
         srand(time(NULL));
         SpectrumInit();
+        cout << "Initalizing finished!" << endl;
     });
 
     m.def("makeQuery", [] (double x, double y, double sigma, double omega_i_x, double omega_i_y, double lbd) {
+        cout << "Generating query..." << endl;
         Query query;
         query.mu_p = Vector2(x, y);
         query.sigma_p = sigma;
         query.omega_i = Vector3(omega_i_x, omega_i_y, 1.0).normalized().head(2);
         query.lambda = lbd;
+        cout << "Generating query finished!" << endl;
         return query;
     });
 
@@ -43,7 +54,8 @@ PYBIND11_MODULE(brdf, m) {
         .def(py::init<string, int, int, Float, int>())
         .def("queryIntegral", &WaveBrdfAccel::queryIntegral)
         .def("queryBrdf", &WaveBrdfAccel::queryBrdf)
-        .def("genBrdfImage", &WaveBrdfAccel::genBrdfImage);
+        .def("genBrdfImageFromGaborBasis", &WaveBrdfAccel::genBrdfImageFromGaborBasis)
+        .def("genBrdfImageFromHeightfield", &WaveBrdfAccel::genBrdfImageFromHeightfield);
 }
 
 comp WaveBrdfAccel::queryIntegral(const Query &query, const GaborBasis &gaborBasis, int layer, int xIndex, int yIndex) {
@@ -160,7 +172,7 @@ Float WaveBrdfAccel::queryBrdf(const Query &query, const GaborBasis &gaborBasis)
     return C1 * pow(abs(I), 2.0f);
 }
 
-BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, const GaborBasis &gaborBasis) {
+BrdfImage WaveBrdfAccel::genBrdfImageFromGaborBasis(const Query &query, const GaborBasis &gaborBasis) {
     MatrixXf brdfImage_r(resolution, resolution);
     MatrixXf brdfImage_g(resolution, resolution);
     MatrixXf brdfImage_b(resolution, resolution);
@@ -169,7 +181,7 @@ BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, const GaborBasis &gabo
         // Single wavelength.
         #pragma omp parallel for schedule(dynamic)
         for (int i = 0; i < resolution; i++) {
-            printf("Generating BRDF image: row %d...\n", i);
+            cout << "\r" << "Generating BRDF image: row " << i << "\t\r" << flush;
             for (int j = 0; j < resolution; j++) {
                 Vector2 omega_o((i + 0.5) / resolution * 2.0 - 1.0,
                                 (j + 0.5) / resolution * 2.0 - 1.0);
@@ -196,7 +208,7 @@ BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, const GaborBasis &gabo
         // Multiple wavelengths.
         #pragma omp parallel for schedule(dynamic)
         for (int i = 0; i < resolution; i++) {
-            printf("Generating BRDF image: row %d...\n", i);
+            cout << "\r" << "Generating BRDF image: row " << i << "\t\r" << flush;
             for (int j = 0; j < resolution; j++) {
                 Vector2 omega_o((i + 0.5) / resolution * 2.0 - 1.0,
                                 (j + 0.5) / resolution * 2.0 - 1.0);
@@ -236,7 +248,20 @@ BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, const GaborBasis &gabo
     brdfImage.g = brdfImage_g;
     brdfImage.b = brdfImage_b;
 
+    cout << "\nGenerating BRDF image finished!" << endl;
     return brdfImage;
+}
+
+BrdfImage WaveBrdfAccel::genBrdfImageFromHeightfield(const Query &query, const Heightfield &heightfield) {
+    Heightfield hf = heightfield;
+    enoki::set_requires_gradient(heightfield.values);
+
+    BrdfImage output = genBrdfImageFromGaborBasis(query, hf.toGaborBasis());
+
+    // FloatD loss = enoki::norm(output);
+    // enoki::backward(loss);
+
+    return output;
 }
 
 inline Vector2 sampleGauss2d(Float r1, Float r2) {

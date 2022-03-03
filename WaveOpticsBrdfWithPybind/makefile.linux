@@ -1,8 +1,8 @@
 SOURCEDIR			:= src
 BUILDDIR    		:= obj
 
-CFLAGS      		:= -std=c++11 -O3 -shared -fPIC -march=native -fopenmp
-INCLUDES         	:= $$(python3 -m pybind11 --includes) -I /usr/include/OpenEXR -I /usr/include/eigen3
+CFLAGS      		:= -std=c++17 -O2 -shared -fPIC -march=native -fopenmp
+INCLUDES         	:= -I /usr/include/python3.8 -I /usr/include/OpenEXR -I /usr/include/eigen3 -I ../extern/pybind11/include -I ../extern/enoki/include
 LIBRARIES			:= -L /usr/local/lib
 
 SUFFIX				:= $$(python3-config --extension-suffix)

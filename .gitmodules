@@ -1,0 +1,8 @@
+[submodule "extern/pybind11"]
+	path = extern/pybind11
+	url = ../../pybind/pybind11
+	branch = stable
+[submodule "extern/enoki"]
+	path = extern/enoki
+	url = ../../mitsuba-renderer/enoki
+	branch = master

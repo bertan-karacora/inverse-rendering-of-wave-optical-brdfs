@@ -53,7 +53,8 @@ class WaveBrdfAccel {
 
         comp queryIntegral(const Query &query, const GaborBasis &gaborBasis, int layer, int xIndex, int yIndex);
         Float queryBrdf(const Query &query, const GaborBasis &gaborBasis);
-        BrdfImage genBrdfImage(const Query &query, const GaborBasis &gaborBasis);
+        BrdfImage genBrdfImageFromGaborBasis(const Query &query, const GaborBasis &gaborBasis);
+        BrdfImage genBrdfImageFromHeightfield(const Query &query, const Heightfield &heightfield);
 
     public:
         string diff_model;
