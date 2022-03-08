@@ -3,10 +3,10 @@ import yaml
 
 parser = argparse.ArgumentParser()
 
+
 parser.add_argument("--config", type=str, help="Config path.")
 
 parser.add_argument("--reference_path", type=str, help="Reference heightfield path.")
-parser.add_argument("--save_path", type=str, help="Save path.")
 
 parser.add_argument("--x", type=float, default=0.0, help="Center x of the Gaussian footprint.")
 parser.add_argument("--y", type=float, default=0.0, help="Center y of the Gaussian footprint.")
@@ -25,10 +25,11 @@ parser.add_argument("--resolution", type=int, default=256, help="Output BRDF res
 
 parser.add_argument("--iterations", type=int, default=1, help="Number of iterations.")
 
+
 args = parser.parse_args()
 
 if args.config:
     with open(args.config, "r") as f:
-        config = yaml.load(f)
+        config = yaml.load(f, Loader=yaml.FullLoader)
     for op in config:
         setattr(args, op, config[op])

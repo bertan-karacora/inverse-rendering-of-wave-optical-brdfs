@@ -1,17 +1,10 @@
 #include "heightfield.h"
 
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
-#include <pybind11/eigen.h>
-
-using namespace Eigen;
-namespace py = pybind11;
 
 PYBIND11_MODULE(heightfield, m) {
     py::class_<Heightfield>(m, "Heightfield")
         .def(py::init<>())
-        .def(py::init<MatrixXf, int, int, Float, Float>())
+        .def(py::init<Eigen::MatrixXf, int, int, Float, Float>())
         .def(py::init<GaborBasis, int, int, Float, Float>())
         .def_readwrite("width", &Heightfield::width)
         .def_readwrite("height", &Heightfield::height)
@@ -29,6 +22,7 @@ PYBIND11_MODULE(heightfield, m) {
         .def_readwrite("angularBB", &GaborBasis::angularBB)
         .def_readwrite("topLayer", &GaborBasis::topLayer);
 }
+
 
 Float A_inv[16][16] = {{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
                        {0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -54,11 +48,11 @@ Heightfield::Heightfield(GaborBasis gaborBasis, int w, int h, Float tw, Float vs
     vertScale = vs;
     width = w;
     height = h;
-    values = MatrixXf(width, height);
+    values = Eigen::MatrixXf(width, height);
 
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
-            values(i, j) = (gaborBasis.gaborKernelPrime[i][j].aInfo / 2.0).dot(Vector2f(i, j)) + gaborBasis.gaborKernelPrime[i][j].cInfo;
+            values(i, j) = (gaborBasis.gaborKernelPrime[i][j].aInfo / 2.0).dot(Eigen::Vector2f(i, j)) + gaborBasis.gaborKernelPrime[i][j].cInfo;
         }
     }
 

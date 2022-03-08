@@ -1,16 +1,8 @@
 #ifndef HEIGHTFIELD_H
 #define HEIGHTFIELD_H
 
-#include <iostream>
-#include <cmath>
-#include <cstdio>
-#include <vector>
-#include <Eigen/Dense>
-#include "gaborkernel.h"
 #include "helpers.h"
-
-using namespace std;
-using namespace Eigen;
+#include "gaborkernel.h"
 
 struct GaborBasis {
     vector<vector<GaborKernelPrime>> gaborKernelPrime;
@@ -18,12 +10,11 @@ struct GaborBasis {
     int topLayer;
 };
 
-
 // Suppose it starts from (0, 0) and extends to positive (w * mTexelWidth, h * mTexelWidth) and is tiling along both axes.
 class Heightfield {
     public:
         Heightfield() {}
-        Heightfield(MatrixXf values, int width, int height, Float texelWidth = 1.0, Float vertScale = 1.0)
+        Heightfield(Eigen::MatrixXf values, int width, int height, Float texelWidth = 1.0, Float vertScale = 1.0)
                     : values(values), width(width), height(height), texelWidth(texelWidth), vertScale(vertScale) {}
         Heightfield(GaborBasis gaborBasis, int w, int h, Float tw, Float vs);
 
@@ -36,8 +27,9 @@ class Heightfield {
         Vector2 n(Float i, Float j);
 
         GaborBasis toGaborBasis();
+
     public:
-        MatrixXf values;
+        Eigen::MatrixXf values;
         int width, height;
         Float texelWidth;   // in microns.
         Float vertScale;

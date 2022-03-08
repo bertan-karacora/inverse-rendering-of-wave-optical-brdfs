@@ -13,21 +13,22 @@ brdfFunction = WaveBrdfAccel(args.diff_model, refImage.width, refImage.height, a
 
 # Generate reference BRDF image
 refHeightfield = Heightfield(refImage.values, refImage.width, refImage.height, args.texel_width, args.vert_scale)
-refGaborBasis = refHeightfield.toGaborBasis()
-refResult = brdfFunction.genBrdfImageFromGaborBasis(query, refGaborBasis)
-# EXRImage.writeImageRGB(refResult.r, refResult.g, refResult.b, args.resolution, args.resolution, "Results/RefBrdf.exr")
+# refGaborBasis = refHeightfield.toGaborBasis()
+# refResult = brdfFunction.genBrdfImage(query, refGaborBasis)
+# EXRImage.writeImageRGB(refResult.r, refResult.g, refResult.b, args.resolution, args.resolution, "Results/ReferenceBrdf.exr")
 
 
 # Test if heightfield read correctly
-hf = Heightfield(refGaborBasis, refImage.width, refImage.height, args.texel_width, args.vert_scale)
-print("Heightfield difference", np.sum(np.square(np.subtract(hf.values, refHeightfield.values))))
+# hf = Heightfield(refGaborBasis, refImage.width, refImage.height, args.texel_width, args.vert_scale)
+# print("Heightfield difference", np.sum(np.square(np.subtract(hf.values, refHeightfield.values))))
 # EXRImage.writeImage(hf.values, hf.width, hf.height, "Results/test.exr")
 
 
 # Generate hypothesis
 heightfield = Heightfield(np.zeros((refImage.width, refImage.height)), refImage.width, refImage.height, args.texel_width, args.vert_scale)
-gaborBasis = heightfield.toGaborBasis()
-result = brdfFunction.genBrdfImageFromGaborBasis(query, gaborBasis)
+# gaborBasis = heightfield.toGaborBasis()
+result = brdfFunction.genBrdfImageDiff(query, heightfield)
+# print(result.r)
 # EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, "Results/starting_hypothesis.exr")
 
 # Test single input change

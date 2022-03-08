@@ -1,20 +1,20 @@
-#ifndef WDF_H
-#define WDF_H
+#ifndef BRDF_H
+#define BRDF_H
 
-#include <iostream>
-#include <cstdio>
-#include <cmath>
-#include <cstdlib>
-#include <complex>
-#include <chrono>
-#include <vector>
-#include <Eigen/Dense>
+#include "helpers.h"
 #include "heightfield.h"
 #include "gaborkernel.h"
 #include "spectrum.h"
 
-using namespace std;
-using namespace Eigen;
+#include <enoki/python.h>
+#include <enoki/autodiff.h>
+#include <enoki/cuda.h>
+#include <enoki/matrix.h>
+
+using FloatC = enoki::CUDAArray<Float>;
+using FloatD = enoki::DiffArray<FloatC>;
+using Matrix2fD = enoki::Matrix<FloatD, 2>;
+using Color3fD = enoki::Array<FloatD, 3>;
 
 struct Query {
     Vector2 mu_p;
@@ -25,9 +25,9 @@ struct Query {
 };
 
 struct BrdfImage {
-    MatrixXf r;
-    MatrixXf g;
-    MatrixXf b;
+    Eigen::MatrixXf r;
+    Eigen::MatrixXf g;
+    Eigen::MatrixXf b;
 };
 
 class GeometricBrdf {
@@ -35,7 +35,7 @@ class GeometricBrdf {
         GeometricBrdf() {}
         GeometricBrdf(Heightfield *heightfield, int sampleNum = 10000000) : heightfield(heightfield), sampleNum(sampleNum) {}
 
-        MatrixXf genNdfImage(const Query &query, int resolution);
+        Eigen::MatrixXf genNdfImage(const Query &query, int resolution);
         BrdfImage genBrdfImage(const Query &query, int resolution);
 
     protected:
@@ -53,8 +53,8 @@ class WaveBrdfAccel {
 
         comp queryIntegral(const Query &query, const GaborBasis &gaborBasis, int layer, int xIndex, int yIndex);
         Float queryBrdf(const Query &query, const GaborBasis &gaborBasis);
-        BrdfImage genBrdfImageFromGaborBasis(const Query &query, const GaborBasis &gaborBasis);
-        BrdfImage genBrdfImageFromHeightfield(const Query &query, const Heightfield &heightfield);
+        BrdfImage genBrdfImage(const Query &query, const GaborBasis &gaborBasis);
+        BrdfImage genBrdfImageDiff(const Query &query, const Heightfield &heightfield);
 
     public:
         string diff_model;

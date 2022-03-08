@@ -8,7 +8,20 @@
 #include <cmath>
 #include <complex>
 #include <cstdlib>
+#include <cstdio>
+#include <iostream>
+#include <chrono>
+#include <vector>
+
 #include <Eigen/Dense>
+
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+#include <pybind11/eigen.h>
+
+using namespace std;
+namespace py = pybind11;
+
 
 typedef float Float;
 typedef Eigen::Vector2f Vector2;

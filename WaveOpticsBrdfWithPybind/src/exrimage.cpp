@@ -1,12 +1,5 @@
 #include "exrimage.h"
 
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-#include <pybind11/eigen.h>
-
-using namespace std;
-using namespace Eigen;
-namespace py = pybind11;
 
 PYBIND11_MODULE(exrimage, m) {
     py::class_<EXRImage>(m, "EXRImage")
@@ -26,16 +19,16 @@ EXRImage::EXRImage(const char *filename) {
 
 void EXRImage::readImage(const char *filename) {
     cout << "Reading image..." << endl;
-    RgbaInputFile file(filename);
+    Imf::RgbaInputFile file(filename);
     Imath::Box2i dw = file.dataWindow();
     width = dw.max.x - dw.min.x + 1;
     height = dw.max.y - dw.min.y + 1;
-    Array2D<Rgba> image;
+    Imf::Array2D<Imf::Rgba> image;
     image.resizeErase(height, width);
     file.setFrameBuffer(&image[0][0] - dw.min.x - dw.min.y * width, 1, width);
     file.readPixels(dw.min.y, dw.max.y);
 
-    values = MatrixXf(width, height);
+    values = Eigen::MatrixXf(width, height);
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
             values(i, j) = image[i][j].r;
@@ -45,10 +38,10 @@ void EXRImage::readImage(const char *filename) {
     cout << "Reading image finished" << endl;
 }
 
-string EXRImage::writeImageRGB(const MatrixXf r_image, const MatrixXf g_image, const MatrixXf b_image, int outputWidth, int outputHeight, string filename) {
+string EXRImage::writeImageRGB(const Eigen::MatrixXf r_image, const Eigen::MatrixXf g_image, const Eigen::MatrixXf b_image, int outputWidth, int outputHeight, string filename) {
     cout << "Writing image..." << endl;
     
-    Rgba *pixels = new Rgba[outputHeight * outputWidth];
+    Imf::Rgba *pixels = new Imf::Rgba[outputHeight * outputWidth];
 
     // Write to image
     for (int i = 0; i < outputHeight; i++) {
@@ -60,7 +53,7 @@ string EXRImage::writeImageRGB(const MatrixXf r_image, const MatrixXf g_image, c
         }
     }
 
-    RgbaOutputFile file(filename.c_str(), outputHeight, outputWidth, WRITE_RGBA);
+    Imf::RgbaOutputFile file(filename.c_str(), outputHeight, outputWidth, Imf::WRITE_RGBA);
     file.setFrameBuffer(pixels, 1, outputWidth);
     file.writePixels(outputHeight);
 
@@ -69,6 +62,6 @@ string EXRImage::writeImageRGB(const MatrixXf r_image, const MatrixXf g_image, c
     return filename;
 }
 
-void EXRImage::writeImage(const MatrixXf image, int outputWidth, int outputHeight, string filename) {
+void EXRImage::writeImage(const Eigen::MatrixXf image, int outputWidth, int outputHeight, string filename) {
     writeImageRGB(image, image, image, outputWidth, outputHeight, filename);
 }

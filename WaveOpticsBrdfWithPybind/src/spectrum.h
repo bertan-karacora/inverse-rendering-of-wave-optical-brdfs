@@ -1,9 +1,7 @@
 #ifndef SPECTRUM_H
 #define SPECTRUM_H
 
-#include <vector>
-#include <cmath>
-using namespace std;
+#include "helpers.h"
 
 const int SPECTRUM_SAMPLES = 8;
 const int CIE_samples = 471;

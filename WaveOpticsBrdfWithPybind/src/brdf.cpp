@@ -1,17 +1,5 @@
 #include "brdf.h"
 
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-#include <pybind11/eigen.h>
-
-#include <enoki/cuda.h>
-#include <enoki/autodiff.h>
-
-namespace py = pybind11;
-
-using FloatC   = enoki::CUDAArray<float>;
-using FloatD   = enoki::DiffArray<FloatC>;
-using Color3fD = enoki::Array<FloatD, 3>;
 
 PYBIND11_MODULE(brdf, m) {
     m.def("initialize", [] () {
@@ -54,9 +42,10 @@ PYBIND11_MODULE(brdf, m) {
         .def(py::init<string, int, int, Float, int>())
         .def("queryIntegral", &WaveBrdfAccel::queryIntegral)
         .def("queryBrdf", &WaveBrdfAccel::queryBrdf)
-        .def("genBrdfImageFromGaborBasis", &WaveBrdfAccel::genBrdfImageFromGaborBasis)
-        .def("genBrdfImageFromHeightfield", &WaveBrdfAccel::genBrdfImageFromHeightfield);
+        .def("genBrdfImage", &WaveBrdfAccel::genBrdfImage)
+        .def("genBrdfImageDiff", &WaveBrdfAccel::genBrdfImageDiff);
 }
+
 
 comp WaveBrdfAccel::queryIntegral(const Query &query, const GaborBasis &gaborBasis, int layer, int xIndex, int yIndex) {
     Float C3 = 2.0f;
@@ -172,10 +161,10 @@ Float WaveBrdfAccel::queryBrdf(const Query &query, const GaborBasis &gaborBasis)
     return C1 * pow(abs(I), 2.0f);
 }
 
-BrdfImage WaveBrdfAccel::genBrdfImageFromGaborBasis(const Query &query, const GaborBasis &gaborBasis) {
-    MatrixXf brdfImage_r(resolution, resolution);
-    MatrixXf brdfImage_g(resolution, resolution);
-    MatrixXf brdfImage_b(resolution, resolution);
+BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, const GaborBasis &gaborBasis) {
+    Eigen::MatrixXf brdfImage_r(resolution, resolution);
+    Eigen::MatrixXf brdfImage_g(resolution, resolution);
+    Eigen::MatrixXf brdfImage_b(resolution, resolution);
 
     if (query.lambda != 0.0) {
         // Single wavelength.
@@ -252,16 +241,21 @@ BrdfImage WaveBrdfAccel::genBrdfImageFromGaborBasis(const Query &query, const Ga
     return brdfImage;
 }
 
-BrdfImage WaveBrdfAccel::genBrdfImageFromHeightfield(const Query &query, const Heightfield &heightfield) {
+BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, const Heightfield &heightfield) {
     Heightfield hf = heightfield;
-    enoki::set_requires_gradient(heightfield.values);
+    Matrix2fD input = Matrix2fD(1.0f);
+    enoki::set_requires_gradient(input);
 
-    BrdfImage output = genBrdfImageFromGaborBasis(query, hf.toGaborBasis());
+    cout << input << endl;
 
-    // FloatD loss = enoki::norm(output);
+    // Color3fD output = genBrdfImage(query, hf.toGaborBasis());
+
+    // FloatD loss = enoki::norm(output - Color3fD(.1f, .2f, .3f));
     // enoki::backward(loss);
 
-    return output;
+    cout << enoki::gradient(input) << endl;
+
+    return genBrdfImage(query, hf.toGaborBasis());
 }
 
 inline Vector2 sampleGauss2d(Float r1, Float r2) {
@@ -272,7 +266,7 @@ inline Vector2 sampleGauss2d(Float r1, Float r2) {
     return Vector2(x, y);
 }
 
-MatrixXf GeometricBrdf::genNdfImage(const Query &query, int resolution) {
+Eigen::MatrixXf GeometricBrdf::genNdfImage(const Query &query, int resolution) {
     int N = (int) std::sqrt(sampleNum);
     const Float intrinsicRoughness = Float(1) / N;
     int *inds = new int[N * N];
@@ -314,7 +308,7 @@ MatrixXf GeometricBrdf::genNdfImage(const Query &query, int resolution) {
     delete[] bins;
     double* ndfIm = (double*) ndfImage;
 
-    MatrixXf values(heightfield->width, heightfield->height);
+    Eigen::MatrixXf values(heightfield->width, heightfield->height);
     for (int i = 0; i < heightfield->height; i++) {
         for (int j = 0; j < heightfield->width; j++) {
             values(i, j) = ndfIm[i * heightfield->width + j];
@@ -326,12 +320,12 @@ MatrixXf GeometricBrdf::genNdfImage(const Query &query, int resolution) {
 
 BrdfImage GeometricBrdf::genBrdfImage(const Query &query, int resolution) {
     const int ndfResolution = resolution * 2;
-    MatrixXf ndfImage = genNdfImage(query, ndfResolution);
+    Eigen::MatrixXf ndfImage = genNdfImage(query, ndfResolution);
 
     BrdfImage brdfImage;
-    brdfImage.r = MatrixXf(resolution, resolution);
-    brdfImage.g = MatrixXf(resolution, resolution);
-    brdfImage.b = MatrixXf(resolution, resolution);
+    brdfImage.r = Eigen::MatrixXf(resolution, resolution);
+    brdfImage.g = Eigen::MatrixXf(resolution, resolution);
+    brdfImage.b = Eigen::MatrixXf(resolution, resolution);
 
     for (int i = 0; i < resolution; i++) {
         for (int j = 0; j < resolution; j++) {

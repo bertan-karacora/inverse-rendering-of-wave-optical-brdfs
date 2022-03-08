@@ -1,23 +1,20 @@
 #ifndef EXR_IMAGE_H
 #define EXR_IMAGE_H
 
-#include <OpenEXR/ImfRgbaFile.h>
-#include <OpenEXR/ImfArray.h>
-#include <Eigen/Dense>
 #include "helpers.h"
 
-using namespace Imf;
-using namespace Eigen;
+#include <OpenEXR/ImfRgbaFile.h>
+#include <OpenEXR/ImfArray.h>
 
 class EXRImage {
     public:
         EXRImage(const char *filename);
         void readImage(const char *filename);
-        static string writeImageRGB(const MatrixXf r_image, const MatrixXf g_image, const MatrixXf b_image, int outputWidth, int outputHeight, string filename);
-        static void writeImage(const MatrixXf image, int outputWidth, int outputHeight, string filename);
+        static string writeImageRGB(const Eigen::MatrixXf r_image, const Eigen::MatrixXf g_image, const Eigen::MatrixXf b_image, int outputWidth, int outputHeight, string filename);
+        static void writeImage(const Eigen::MatrixXf image, int outputWidth, int outputHeight, string filename);
     
     public:
-        MatrixXf values;
+        Eigen::MatrixXf values;
         int width, height;
 };
 

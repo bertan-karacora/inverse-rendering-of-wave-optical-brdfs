@@ -1,11 +1,11 @@
 SOURCEDIR			:= src
 BUILDDIR    		:= obj
 
+SUFFIX				:= $$(python3-config --extension-suffix)
+
 CFLAGS      		:= -std=c++17 -O2 -shared -fPIC -march=native -fopenmp
 INCLUDES         	:= -I /usr/include/python3.8 -I /usr/include/OpenEXR -I /usr/include/eigen3 -I ../extern/pybind11/include -I ../extern/enoki/include
-LIBRARIES			:= -L /usr/local/lib
-
-SUFFIX				:= $$(python3-config --extension-suffix)
+LIBRARIES			:= -L /usr/local/cuda-11.6/lib64 -L ../extern/enoki/build -l enoki-cuda -l enoki-autodiff -L ../extern/enoki/build/enoki -l :core$(SUFFIX) -l :cuda_autodiff$(SUFFIX)  -l :cuda$(SUFFIX)  -l :dynamic$(SUFFIX)  -l :scalar$(SUFFIX)
 
 
 all: directories exrimage heightfield gaborkernel brdf
