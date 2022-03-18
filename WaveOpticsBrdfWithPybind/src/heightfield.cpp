@@ -14,10 +14,11 @@ PYBIND11_MODULE(heightfield, m) {
         .def("getValue", &Heightfield::getValue)
         .def("getValueUV", &Heightfield::getValueUV)
         .def("g", &Heightfield::g)
-        .def("n", &Heightfield::n)
-        .def("toGaborBasis", &Heightfield::toGaborBasis);
+        .def("n", &Heightfield::n);
 
     py::class_<GaborBasis>(m, "GaborBasis")
+        .def(py::init<>())
+        .def(py::init<Heightfield>())
         .def_readwrite("gaborKernelPrime", &GaborBasis::gaborKernelPrime)
         .def_readwrite("angularBB", &GaborBasis::angularBB)
         .def_readwrite("topLayer", &GaborBasis::topLayer);
@@ -41,20 +42,34 @@ Float A_inv[16][16] = {{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
                        {-6, 6, 6, -6, -4, -2, 4, 2, -3, 3, -3, 3, -2, -1, -2, -1},
                        {4, -4, -4, 4, 2, 2, -2, -2, 2, -2, 2, -2, 1, 1, 1, 1}};
 
-Heightfield::Heightfield(GaborBasis gaborBasis, int w, int h, Float tw, Float vs) {
+Heightfield::Heightfield(Eigen::MatrixXf values, int width, int height, Float texelWidth, Float vertScale) {
+    cout << "Generating Heightfield from Numpy..." << endl;
+
+    this->texelWidth = texelWidth;
+    this->vertScale = vertScale;
+    this->width = width;
+    this->height = height;
+    this->values = FloatD::copy(values.data(), values.size());
+
+    cout << "Generating Heightfield from Numpy finished!" << endl;
+}
+
+Heightfield::Heightfield(GaborBasis gaborBasis, int width, int height, Float texelWidth, Float vertScale) {
     cout << "Generating Heightfield from GaborBasis..." << endl;
 
-    texelWidth = tw;
-    vertScale = vs;
-    width = w;
-    height = h;
-    values = Eigen::MatrixXf(width, height);
+    this->texelWidth = texelWidth;
+    this->vertScale = vertScale;
+    this->width = width;
+    this->height = height;
+    Eigen::MatrixXf val(this->width, this->height);
 
-    for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-            values(i, j) = (gaborBasis.gaborKernelPrime[i][j].aInfo / 2.0).dot(Eigen::Vector2f(i, j)) + gaborBasis.gaborKernelPrime[i][j].cInfo;
+    for (int i = 0; i < this->height; i++) {
+        for (int j = 0; j < this->width; j++) {
+            val(i, j) = (gaborBasis.gaborKernelPrime[i][j].aInfo / 2.0).dot(Eigen::Vector2f(i, j)) + gaborBasis.gaborKernelPrime[i][j].cInfo;
         }
     }
+
+    this->values = FloatD::copy(val.data(), val.size());
 
     cout << "Generating Heightfield from GaborBasis finished!" << endl;
 }
@@ -132,40 +147,40 @@ Vector2 Heightfield::n(Float i, Float j) {
     return n.head(2);
 }
 
-GaborBasis Heightfield::toGaborBasis() {
+GaborBasis::GaborBasis(const Heightfield &hf) {
+    Heightfield heightfield = hf;
     cout << "Generating GaborBasis from Heightfield..." << endl;
-    GaborBasis gaborBasis;
 
-    assert(height == width);
+    assert(heightfield.height == heightfield.width);
         
-    gaborBasis.topLayer = (int) floor(log(height * 1.0) / log(2.0) + 1e-4);    // 0, 1, 2, ..., topLayer.
+    topLayer = (int) floor(log(heightfield.height * 1.0) / log(2.0) + 1e-4);    // 0, 1, 2, ..., topLayer.
 
     cout << "Preprocessing heightfield: layer 0" << "\t\r" << flush;
-    gaborBasis.angularBB.push_back(vector<vector<AABB>>());
-    vector<vector<AABB>> &angularBBLayer = gaborBasis.angularBB.back();
-    angularBBLayer.reserve(height);
-    for (int i = 0; i < height; i++) {
+    angularBB.push_back(vector<vector<AABB>>());
+    vector<vector<AABB>> &angularBBLayer = angularBB.back();
+    angularBBLayer.reserve(heightfield.height);
+    for (int i = 0; i < heightfield.height; i++) {
         angularBBLayer.push_back(vector<AABB>());
-        angularBBLayer.back().reserve(width);
-        gaborBasis.gaborKernelPrime.push_back(vector<GaborKernelPrime>());
-        gaborBasis.gaborKernelPrime.back().reserve(width);
+        angularBBLayer.back().reserve(heightfield.width);
+        gaborKernelPrime.push_back(vector<GaborKernelPrime>());
+        gaborKernelPrime.back().reserve(heightfield.width);
     }
 
     #pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < height; i++) {
-        vector<GaborKernelPrime> &gaborKernelPrimeRow = gaborBasis.gaborKernelPrime[i];
+    for (int i = 0; i < heightfield.height; i++) {
+        vector<GaborKernelPrime> &gaborKernelPrimeRow = gaborKernelPrime[i];
         vector<AABB> &angularBBRow = angularBBLayer[i];
-        for (int j = 0; j < width; j++) {
-            Vector2 m_k(Float((i + 0.5) * texelWidth), Float((j + 0.5) * texelWidth));
-            Float l_k = texelWidth;
+        for (int j = 0; j < heightfield.width; j++) {
+            Vector2 m_k(Float((i + 0.5) * heightfield.texelWidth), Float((j + 0.5) * heightfield.texelWidth));
+            Float l_k = heightfield.texelWidth;
 
             Vector2 mu_k = m_k;
             Float sigma_k = l_k / SCALE_FACTOR;
 
-            Float H_mk = getValue(i, j) * texelWidth * vertScale;   // Assuming texelWidth doesn't affect the heightfield's shape.
+            Float H_mk = heightfield.getValue(i, j) * heightfield.texelWidth * heightfield.vertScale;   // Assuming texelWidth doesn't affect the heightfield's shape.
 
-            Vector2 HPrime_mk(Float((getValue(i + 1, j) - getValue(i - 1, j)) / 2.0 * vertScale),
-                                    Float((getValue(i, j + 1) - getValue(i, j - 1)) / 2.0 * vertScale));
+            Vector2 HPrime_mk(Float((heightfield.getValue(i + 1, j) - heightfield.getValue(i - 1, j)) / 2.0 * heightfield.vertScale),
+                                    Float((heightfield.getValue(i, j + 1) - heightfield.getValue(i, j - 1)) / 2.0 * heightfield.vertScale));
 
             Float cInfo_k = H_mk - HPrime_mk.dot(m_k);
             Vector2 aInfo_k = 2.0 * HPrime_mk;
@@ -175,9 +190,9 @@ GaborBasis Heightfield::toGaborBasis() {
         }
     }
 
-    int currentHeight = height;
-    int currentWidth = width;
-    for (int currentLayer = 1; currentLayer <= gaborBasis.topLayer; currentLayer++) {
+    int currentHeight = heightfield.height;
+    int currentWidth = heightfield.width;
+    for (int currentLayer = 1; currentLayer <= topLayer; currentLayer++) {
         cout << "\r" << "Preprocessing heightfield: layer " << currentLayer << "\t\r" << flush;
         vector<vector<AABB>> angularBBLayer;
         currentHeight >>= 1;
@@ -187,17 +202,16 @@ GaborBasis Heightfield::toGaborBasis() {
             vector<AABB> angularBBRow;
             angularBBRow.reserve(currentWidth);
             for (int j = 0; j < currentWidth; j++) {
-                AABB aabb1 = gaborBasis.angularBB[currentLayer - 1][i * 2 + 0][j * 2 + 0];
-                AABB aabb2 = gaborBasis.angularBB[currentLayer - 1][i * 2 + 1][j * 2 + 0];
-                AABB aabb3 = gaborBasis.angularBB[currentLayer - 1][i * 2 + 1][j * 2 + 1];
-                AABB aabb4 = gaborBasis.angularBB[currentLayer - 1][i * 2 + 0][j * 2 + 1];
+                AABB aabb1 = angularBB[currentLayer - 1][i * 2 + 0][j * 2 + 0];
+                AABB aabb2 = angularBB[currentLayer - 1][i * 2 + 1][j * 2 + 0];
+                AABB aabb3 = angularBB[currentLayer - 1][i * 2 + 1][j * 2 + 1];
+                AABB aabb4 = angularBB[currentLayer - 1][i * 2 + 0][j * 2 + 1];
                 angularBBRow.push_back(combineAABB(aabb1, aabb2, aabb3, aabb4));
             }
             angularBBLayer.push_back(angularBBRow);
         }
-        gaborBasis.angularBB.push_back(angularBBLayer);
+        angularBB.push_back(angularBBLayer);
     }
 
     cout << "\n" << "Preprocessing heightfield finished!" << endl;
-    return gaborBasis;
 }

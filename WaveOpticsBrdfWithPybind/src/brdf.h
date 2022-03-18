@@ -9,12 +9,9 @@
 #include <enoki/python.h>
 #include <enoki/autodiff.h>
 #include <enoki/cuda.h>
-#include <enoki/matrix.h>
 
 using FloatC = enoki::CUDAArray<Float>;
 using FloatD = enoki::DiffArray<FloatC>;
-using Matrix2fD = enoki::Matrix<FloatD, 2>;
-using Color3fD = enoki::Array<FloatD, 3>;
 
 struct Query {
     Vector2 mu_p;
@@ -54,7 +51,8 @@ class WaveBrdfAccel {
         comp queryIntegral(const Query &query, const GaborBasis &gaborBasis, int layer, int xIndex, int yIndex);
         Float queryBrdf(const Query &query, const GaborBasis &gaborBasis);
         BrdfImage genBrdfImage(const Query &query, const GaborBasis &gaborBasis);
-        BrdfImage genBrdfImageDiff(const Query &query, const Heightfield &heightfield);
+        BrdfImage genBrdfImageDiff(const Query &query, Heightfield &heightfield);
+        FloatD backpropagate(Float loss);
 
     public:
         string diff_model;

@@ -43,7 +43,8 @@ PYBIND11_MODULE(brdf, m) {
         .def("queryIntegral", &WaveBrdfAccel::queryIntegral)
         .def("queryBrdf", &WaveBrdfAccel::queryBrdf)
         .def("genBrdfImage", &WaveBrdfAccel::genBrdfImage)
-        .def("genBrdfImageDiff", &WaveBrdfAccel::genBrdfImageDiff);
+        .def("genBrdfImageDiff", &WaveBrdfAccel::genBrdfImageDiff)
+        .def("backpropagate", &WaveBrdfAccel::backpropagate);
 }
 
 
@@ -241,21 +242,18 @@ BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, const GaborBasis &gabo
     return brdfImage;
 }
 
-BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, const Heightfield &heightfield) {
-    Heightfield hf = heightfield;
-    Matrix2fD input = Matrix2fD(1.0f);
-    enoki::set_requires_gradient(input);
+BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, Heightfield &heightfield) {
+    enoki::set_requires_gradient(heightfield.values);
 
-    cout << input << endl;
+    GaborBasis gaborBasis(heightfield);
 
-    // Color3fD output = genBrdfImage(query, hf.toGaborBasis());
+    return genBrdfImage(query, gaborBasis);
+}
 
-    // FloatD loss = enoki::norm(output - Color3fD(.1f, .2f, .3f));
-    // enoki::backward(loss);
+FloatD WaveBrdfAccel::backpropagate(Float loss) {
+    enoki::backward((FloatD) loss);
 
-    cout << enoki::gradient(input) << endl;
-
-    return genBrdfImage(query, hf.toGaborBasis());
+    // cout << enoki::gradient(input) << endl;
 }
 
 inline Vector2 sampleGauss2d(Float r1, Float r2) {
