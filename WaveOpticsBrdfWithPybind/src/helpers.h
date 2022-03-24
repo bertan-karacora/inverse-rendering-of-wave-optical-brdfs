@@ -20,11 +20,19 @@
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
 
+#include <enoki/python.h>
+#include <enoki/autodiff.h>
+#include <enoki/cuda.h>
+
+typedef float Float;
+
+using FloatC = enoki::CUDAArray<Float>;
+using FloatD = enoki::DiffArray<FloatC>;
+template <size_t size> using MatrixD = enoki::Array<enoki::Array<FloatD, size>>;
+
 using namespace std;
 namespace py = pybind11;
 
-
-typedef float Float;
 typedef Eigen::Vector2f Vector2;
 typedef Eigen::Vector3f Vector3;
 typedef std::complex<Float> comp;

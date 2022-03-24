@@ -4,19 +4,13 @@
 #include "helpers.h"
 #include "gaborkernel.h"
 
-#include <enoki/python.h>
-#include <enoki/autodiff.h>
-#include <enoki/cuda.h>
-
-using FloatC = enoki::CUDAArray<Float>;
-using FloatD = enoki::DiffArray<FloatC>;
-
 class Heightfield;
 
 class GaborBasis {
     public:
         GaborBasis() {};
         GaborBasis(const Heightfield &hf);
+        GaborBasis(Heightfield Heightfield, bool diff);
 
     public:
         vector<vector<GaborKernelPrime>> gaborKernelPrime;
@@ -36,11 +30,15 @@ class Heightfield {
         // Bicubic interpolation. u and v are from 0 to 1.
         Float getValueUV(Float u, Float v);
 
+        FloatD getValueDiff(Float x, Float y);
+        FloatD getValueUVDiff(Float u, Float v);
+
         GaborKernel g(int i, int j, Float F, Float lambda);
         Vector2 n(Float i, Float j);
 
     public:
-        FloatD values;
+        FloatD valuesDiff;
+        Eigen::MatrixXf values;
         int width, height;
         Float texelWidth;   // in microns.
         Float vertScale;
@@ -53,19 +51,35 @@ class Heightfield {
         }
 
         inline Float hp(int x, int y) {
-            return values[mod(x, height) * width + mod(y, width)];
+            return values(mod(x, height), mod(y, width));
         }
         
         inline Float hpx(int x, int y) {
-            return (values[mod(x + 1, height) * width + mod(y, width)] - values[mod(x - 1, height) * width + mod(y, width)]) / 2.0;
+            return (values(mod(x + 1, height), mod(y, width)) - values(mod(x - 1, height), mod(y, width))) / 2.0;
         }
         
         inline Float hpy(int x, int y) {
-            return (values[mod(x, height) * width + mod(y + 1, width)] - values[mod(x, height) * width + mod(y - 1, width)]) / 2.0;
+            return (values(mod(x, height), mod(y + 1, width)) - values(mod(x, height), mod(y - 1, width))) / 2.0;
         }
         
         inline Float hpxy(int x, int y) {
             return (hp(x + 1, y + 1) - hp(x + 1, y) - hp(x, y + 1) + 2.0 * hp(x, y) - hp(x - 1, y) - hp(x, y - 1) + hp(x - 1, y - 1)) / 2.0;
+        }
+
+        inline FloatD hpDiff(int x, int y) {
+            return valuesDiff[mod(x, height) * width + mod(y, width)];
+        }
+        
+        inline FloatD hpxDiff(int x, int y) {
+            return (valuesDiff[mod(x + 1, height) * width + mod(y, width)] - valuesDiff[mod(x - 1, height) * width + mod(y, width)]) / 2.0;
+        }
+        
+        inline FloatD hpyDiff(int x, int y) {
+            return (valuesDiff[mod(x, height) * width + mod(y + 1, width)] - valuesDiff[mod(x, height) * width + mod(y - 1, width)]) / 2.0;
+        }
+        
+        inline FloatD hpxyDiff(int x, int y) {
+            return (hpDiff(x + 1, y + 1) - hpDiff(x + 1, y) - hpDiff(x, y + 1) + 2.0 * hpDiff(x, y) - hpDiff(x - 1, y) - hpDiff(x, y - 1) + hpDiff(x - 1, y - 1)) / 2.0;
         }
 };
 

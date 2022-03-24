@@ -6,13 +6,6 @@
 #include "gaborkernel.h"
 #include "spectrum.h"
 
-#include <enoki/python.h>
-#include <enoki/autodiff.h>
-#include <enoki/cuda.h>
-
-using FloatC = enoki::CUDAArray<Float>;
-using FloatD = enoki::DiffArray<FloatC>;
-
 struct Query {
     Vector2 mu_p;
     Float sigma_p;
@@ -27,21 +20,6 @@ struct BrdfImage {
     Eigen::MatrixXf b;
 };
 
-class GeometricBrdf {
-    public:
-        GeometricBrdf() {}
-        GeometricBrdf(Heightfield *heightfield, int sampleNum = 10000000) : heightfield(heightfield), sampleNum(sampleNum) {}
-
-        Eigen::MatrixXf genNdfImage(const Query &query, int resolution);
-        BrdfImage genBrdfImage(const Query &query, int resolution);
-
-    protected:
-        Heightfield *heightfield;
-
-    private:
-        int sampleNum;
-};
-
 class WaveBrdfAccel {
     public:
         WaveBrdfAccel() {}
@@ -51,8 +29,8 @@ class WaveBrdfAccel {
         comp queryIntegral(const Query &query, const GaborBasis &gaborBasis, int layer, int xIndex, int yIndex);
         Float queryBrdf(const Query &query, const GaborBasis &gaborBasis);
         BrdfImage genBrdfImage(const Query &query, const GaborBasis &gaborBasis);
-        BrdfImage genBrdfImageDiff(const Query &query, Heightfield &heightfield);
-        FloatD backpropagate(Float loss);
+        BrdfImage genBrdfImageDiff(const Query &query, Heightfield &heightfield, BrdfImage ref);
+        // vector<Float> backpropagate(Float loss, Heightfield &heightfield);
 
     public:
         string diff_model;

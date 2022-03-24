@@ -9,16 +9,20 @@ PYBIND11_MODULE(heightfield, m) {
         .def_readwrite("width", &Heightfield::width)
         .def_readwrite("height", &Heightfield::height)
         .def_readwrite("values", &Heightfield::values)
+        .def_readwrite("valuesDiff", &Heightfield::valuesDiff)
         .def_readwrite("texelWidth", &Heightfield::texelWidth)
         .def_readwrite("vertScale", &Heightfield::vertScale)
         .def("getValue", &Heightfield::getValue)
         .def("getValueUV", &Heightfield::getValueUV)
+        .def("getValueDiff", &Heightfield::getValueDiff)
+        .def("getValueUVDiff", &Heightfield::getValueUVDiff)
         .def("g", &Heightfield::g)
         .def("n", &Heightfield::n);
 
     py::class_<GaborBasis>(m, "GaborBasis")
         .def(py::init<>())
         .def(py::init<Heightfield>())
+        .def(py::init<Heightfield, bool>())
         .def_readwrite("gaborKernelPrime", &GaborBasis::gaborKernelPrime)
         .def_readwrite("angularBB", &GaborBasis::angularBB)
         .def_readwrite("topLayer", &GaborBasis::topLayer);
@@ -49,7 +53,8 @@ Heightfield::Heightfield(Eigen::MatrixXf values, int width, int height, Float te
     this->vertScale = vertScale;
     this->width = width;
     this->height = height;
-    this->values = FloatD::copy(values.data(), values.size());
+    this->values = values;
+    this->valuesDiff = FloatD::copy(this->values.data(), this->values.size());
 
     cout << "Generating Heightfield from Numpy finished!" << endl;
 }
@@ -61,15 +66,15 @@ Heightfield::Heightfield(GaborBasis gaborBasis, int width, int height, Float tex
     this->vertScale = vertScale;
     this->width = width;
     this->height = height;
-    Eigen::MatrixXf val(this->width, this->height);
+    this->values = Eigen::MatrixXf(this->width, this->height);
 
     for (int i = 0; i < this->height; i++) {
         for (int j = 0; j < this->width; j++) {
-            val(i, j) = (gaborBasis.gaborKernelPrime[i][j].aInfo / 2.0).dot(Eigen::Vector2f(i, j)) + gaborBasis.gaborKernelPrime[i][j].cInfo;
+            values(i, j) = (gaborBasis.gaborKernelPrime[i][j].aInfo / 2.0).dot(Eigen::Vector2f(i, j)) + gaborBasis.gaborKernelPrime[i][j].cInfo;
         }
     }
 
-    this->values = FloatD::copy(val.data(), val.size());
+    this->valuesDiff = FloatD::copy(this->values.data(), this->values.size());
 
     cout << "Generating Heightfield from GaborBasis finished!" << endl;
 }
@@ -86,6 +91,10 @@ void Heightfield::computeCoeff(Float *alpha, const Float *x) {
 // Bicubic interpolation
 Float Heightfield::getValue(Float x, Float y) {
     return getValueUV(x / height, y / width);
+}
+
+FloatD Heightfield::getValueDiff(Float x, Float y) {
+    return getValueUVDiff(x / height, y / width);
 }
 
 // Bicubic interpolation
@@ -111,6 +120,42 @@ Float Heightfield::getValueUV(Float u, Float v) {
                           {a[3], a[7], a[11], a[15]}};
     
     Float h = 0.0f;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            h += coeffA[i][j] * pow(x - x1, (Float)(i)) * pow(y - y1, (Float)(j));
+        }
+    }
+
+    return h;
+}
+
+FloatD Heightfield::getValueUVDiff(Float u, Float v) {
+    Float x = u * height;
+    Float y = v * width;
+    int x1 = (int) floor(x);
+    int y1 = (int) floor(y);
+    int x2 = x1 + 1;
+    int y2 = y1 + 1;
+
+    FloatD a = enoki::zero<FloatD>(16);
+
+    FloatD xp[16] = {hpDiff(x1, y1), hpDiff(x2, y1), hpDiff(x1, y2), hpDiff(x2, y2),
+                    hpxDiff(x1, y1), hpxDiff(x2, y1), hpxDiff(x1, y2), hpxDiff(x2, y2),
+                    hpyDiff(x1, y1), hpyDiff(x2, y1), hpyDiff(x1, y2), hpyDiff(x2, y2),
+                    hpxyDiff(x1, y1), hpxyDiff(x2, y1), hpxyDiff(x1, y2), hpxyDiff(x2, y2)};
+
+    // for (int i = 0; i < 16; i++) {
+    //     for (int j = 0; j < 16; j++) {
+    //         a[i] += A_inv[i][j] * xp[j];
+    //     }
+    // }
+
+    Float coeffA[4][4] = {{a[0], a[4], a[8], a[12]},
+                          {a[1], a[5], a[9], a[13]},
+                          {a[2], a[6], a[10], a[14]},
+                          {a[3], a[7], a[11], a[15]}};
+    
+    FloatD h = 0.0f;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             h += coeffA[i][j] * pow(x - x1, (Float)(i)) * pow(y - y1, (Float)(j));
@@ -171,16 +216,86 @@ GaborBasis::GaborBasis(const Heightfield &hf) {
         vector<GaborKernelPrime> &gaborKernelPrimeRow = gaborKernelPrime[i];
         vector<AABB> &angularBBRow = angularBBLayer[i];
         for (int j = 0; j < heightfield.width; j++) {
+            cout << "\rRow " << i << " | Col " << j << "\t\r" << flush;
             Vector2 m_k(Float((i + 0.5) * heightfield.texelWidth), Float((j + 0.5) * heightfield.texelWidth));
             Float l_k = heightfield.texelWidth;
 
             Vector2 mu_k = m_k;
             Float sigma_k = l_k / SCALE_FACTOR;
-
             Float H_mk = heightfield.getValue(i, j) * heightfield.texelWidth * heightfield.vertScale;   // Assuming texelWidth doesn't affect the heightfield's shape.
 
             Vector2 HPrime_mk(Float((heightfield.getValue(i + 1, j) - heightfield.getValue(i - 1, j)) / 2.0 * heightfield.vertScale),
                                     Float((heightfield.getValue(i, j + 1) - heightfield.getValue(i, j - 1)) / 2.0 * heightfield.vertScale));
+
+            Float cInfo_k = H_mk - HPrime_mk.dot(m_k);
+            Vector2 aInfo_k = 2.0 * HPrime_mk;
+
+            gaborKernelPrimeRow.push_back(GaborKernelPrime(mu_k, sigma_k, aInfo_k, cInfo_k));
+            angularBBRow.push_back(AABB(-aInfo_k(0), -aInfo_k(0), -aInfo_k(1), -aInfo_k(1)));
+        }
+    }
+
+    int currentHeight = heightfield.height;
+    int currentWidth = heightfield.width;
+    for (int currentLayer = 1; currentLayer <= topLayer; currentLayer++) {
+        cout << "\r" << "Preprocessing heightfield: layer " << currentLayer << "\t\r" << flush;
+        vector<vector<AABB>> angularBBLayer;
+        currentHeight >>= 1;
+        currentWidth >>= 1;
+        angularBBLayer.reserve(currentHeight);
+        for (int i = 0; i < currentHeight; i++) {
+            vector<AABB> angularBBRow;
+            angularBBRow.reserve(currentWidth);
+            for (int j = 0; j < currentWidth; j++) {
+                AABB aabb1 = angularBB[currentLayer - 1][i * 2 + 0][j * 2 + 0];
+                AABB aabb2 = angularBB[currentLayer - 1][i * 2 + 1][j * 2 + 0];
+                AABB aabb3 = angularBB[currentLayer - 1][i * 2 + 1][j * 2 + 1];
+                AABB aabb4 = angularBB[currentLayer - 1][i * 2 + 0][j * 2 + 1];
+                angularBBRow.push_back(combineAABB(aabb1, aabb2, aabb3, aabb4));
+            }
+            angularBBLayer.push_back(angularBBRow);
+        }
+        angularBB.push_back(angularBBLayer);
+    }
+
+    cout << "\n" << "Preprocessing heightfield finished!" << endl;
+}
+
+GaborBasis::GaborBasis(Heightfield heightfield, bool diff) {
+    cout << "Generating GaborBasis from Heightfield..." << endl;
+
+    assert(heightfield.height == heightfield.width);
+        
+    topLayer = (int) floor(log(heightfield.height * 1.0) / log(2.0) + 1e-4);    // 0, 1, 2, ..., topLayer.
+
+    cout << "Preprocessing heightfield: layer 0" << "\t\r" << flush;
+    angularBB.push_back(vector<vector<AABB>>());
+    vector<vector<AABB>> &angularBBLayer = angularBB.back();
+    angularBBLayer.reserve(heightfield.height);
+    for (int i = 0; i < heightfield.height; i++) {
+        angularBBLayer.push_back(vector<AABB>());
+        angularBBLayer.back().reserve(heightfield.width);
+        gaborKernelPrime.push_back(vector<GaborKernelPrime>());
+        gaborKernelPrime.back().reserve(heightfield.width);
+    }
+
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < heightfield.height; i++) {
+        vector<GaborKernelPrime> &gaborKernelPrimeRow = gaborKernelPrime[i];
+        vector<AABB> &angularBBRow = angularBBLayer[i];
+        for (int j = 0; j < heightfield.width; j++) {
+            // cout << "\rRow " << i << " | Col " << j << "\t\r" << flush;
+            Vector2 m_k(Float((i + 0.5) * heightfield.texelWidth), Float((j + 0.5) * heightfield.texelWidth));
+            Float l_k = heightfield.texelWidth;
+
+            Vector2 mu_k = m_k;
+            Float sigma_k = l_k / SCALE_FACTOR;
+            Float H_mk = heightfield.getValue(i, j) * heightfield.texelWidth * heightfield.vertScale;   // Assuming texelWidth doesn't affect the heightfield's shape.
+
+            // Vector2 HPrime_mk(Float((heightfield.getValueDiff(i + 1, j) - heightfield.getValueDiff(i - 1, j)) / 2.0 * heightfield.vertScale),
+            //                         Float((heightfield.getValueDiff(i, j + 1) - heightfield.getValueDiff(i, j - 1)) / 2.0 * heightfield.vertScale));
+
+            Vector2 HPrime_mk(0.0, 0.0);
 
             Float cInfo_k = H_mk - HPrime_mk.dot(m_k);
             Vector2 aInfo_k = 2.0 * HPrime_mk;

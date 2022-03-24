@@ -31,20 +31,13 @@ PYBIND11_MODULE(brdf, m) {
         .def_readwrite("g", &BrdfImage::g)
         .def_readwrite("b", &BrdfImage::b);
 
-    py::class_<GeometricBrdf>(m, "GeometricBrdf")
-        .def(py::init<>())
-        .def(py::init<Heightfield *, int>())
-        .def("genNdfImage", &GeometricBrdf::genNdfImage)
-        .def("genBrdfImage", &GeometricBrdf::genBrdfImage);
-
     py::class_<WaveBrdfAccel>(m, "WaveBrdfAccel")
         .def(py::init<>())
         .def(py::init<string, int, int, Float, int>())
         .def("queryIntegral", &WaveBrdfAccel::queryIntegral)
         .def("queryBrdf", &WaveBrdfAccel::queryBrdf)
         .def("genBrdfImage", &WaveBrdfAccel::genBrdfImage)
-        .def("genBrdfImageDiff", &WaveBrdfAccel::genBrdfImageDiff)
-        .def("backpropagate", &WaveBrdfAccel::backpropagate);
+        .def("genBrdfImageDiff", &WaveBrdfAccel::genBrdfImageDiff);
 }
 
 
@@ -242,18 +235,44 @@ BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, const GaborBasis &gabo
     return brdfImage;
 }
 
-BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, Heightfield &heightfield) {
-    enoki::set_requires_gradient(heightfield.values);
+BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, Heightfield &heightfield, BrdfImage ref) {
+    // enoki::set_requires_gradient(heightfield.valuesDiff);
 
-    GaborBasis gaborBasis(heightfield);
+    cout << heightfield.valuesDiff << endl;
 
-    return genBrdfImage(query, gaborBasis);
-}
 
-FloatD WaveBrdfAccel::backpropagate(Float loss) {
-    enoki::backward((FloatD) loss);
 
-    // cout << enoki::gradient(input) << endl;
+
+    FloatD loss = heightfield.valuesDiff[1];
+
+    // FloatD loss = enoki::norm(0.0);
+
+    // FloatD loss = enoki::norm(FloatD::copy(output.r.data(), output.r.size()) - FloatD::copy(ref.r.data(), ref.r.size()));
+
+    enoki::backward(loss);
+
+    FloatD grad = enoki::gradient(heightfield.valuesDiff);
+    cout << grad << endl;
+
+    // cout << enoki::graphviz(loss) << endl;
+
+    cout << enoki::cuda_whos() << endl;
+
+
+
+
+
+    GaborBasis gaborBasis(heightfield, true);
+
+    BrdfImage output = genBrdfImage(query, gaborBasis);
+
+    for (int i = 0; i < heightfield.height; i++) {
+        for (int j = 0; j < heightfield.width; j++) {
+            output.r(i, j) = grad[i * heightfield.width + j];
+        }
+    }
+
+    return output;
 }
 
 inline Vector2 sampleGauss2d(Float r1, Float r2) {
@@ -262,104 +281,4 @@ inline Vector2 sampleGauss2d(Float r1, Float r2) {
     Float x = tmp * std::cos(2 * Float(M_PI) * r2);
     Float y = tmp * std::sin(2 * Float(M_PI) * r2);
     return Vector2(x, y);
-}
-
-Eigen::MatrixXf GeometricBrdf::genNdfImage(const Query &query, int resolution) {
-    int N = (int) std::sqrt(sampleNum);
-    const Float intrinsicRoughness = Float(1) / N;
-    int *inds = new int[N * N];
-
-    #pragma omp parallel for
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < N; j++) {
-            // sample query Gaussian, stratified
-            Float rx = (i + randUniform<Float>()) / N;
-            Float ry = (j + randUniform<Float>()) / N;
-            Vector2 g = sampleGauss2d(rx, ry);
-
-            // look up normal
-            Vector2 x = g * query.sigma_p / heightfield->texelWidth;
-            x += query.mu_p;
-            Vector2 normal = heightfield->n(x[0], x[1]);
-
-            // intrinsic roughness
-            normal += intrinsicRoughness * sampleGauss2d(randUniform<Float>(), randUniform<Float>());
-
-            int xi = (int)((1 + normal[0]) / 2 * resolution);
-            int yi = (int)((1 - normal[1]) / 2 * resolution);
-            if (xi < 0 || xi >= resolution || yi < 0 || yi >= resolution) continue;
-            inds[i*N + j] = yi * resolution + xi;
-        }
-    }
-
-    // bin the samples using indices computed above
-    int npix = resolution * resolution;
-    int *bins = new int[npix];
-    memset(bins, 0, npix * sizeof(int));
-    for (int i = 0; i < N*N; i++) bins[inds[i]]++;
-
-    Vector3 *ndfImage = new Vector3[npix];
-    Float scale = Float(npix) / (4 * N * N);
-    for (int i = 0; i < npix; i++) ndfImage[i] = Vector3::Constant(scale * bins[i]);
-
-    delete[] inds;
-    delete[] bins;
-    double* ndfIm = (double*) ndfImage;
-
-    Eigen::MatrixXf values(heightfield->width, heightfield->height);
-    for (int i = 0; i < heightfield->height; i++) {
-        for (int j = 0; j < heightfield->width; j++) {
-            values(i, j) = ndfIm[i * heightfield->width + j];
-        }
-    }
-
-    return values;
-}
-
-BrdfImage GeometricBrdf::genBrdfImage(const Query &query, int resolution) {
-    const int ndfResolution = resolution * 2;
-    Eigen::MatrixXf ndfImage = genNdfImage(query, ndfResolution);
-
-    BrdfImage brdfImage;
-    brdfImage.r = Eigen::MatrixXf(resolution, resolution);
-    brdfImage.g = Eigen::MatrixXf(resolution, resolution);
-    brdfImage.b = Eigen::MatrixXf(resolution, resolution);
-
-    for (int i = 0; i < resolution; i++) {
-        for (int j = 0; j < resolution; j++) {
-            const int numSamples = 16;
-            for (int k = 0; k < numSamples; k++) {
-                Vector2 omega_o((i + randUniform<Float>()) / resolution * 2.0 - 1.0,
-                                (j + randUniform<Float>()) / resolution * 2.0 - 1.0);
-
-                Vector3 omega_i_3(query.omega_i(0), query.omega_i(1), sqrt(1.0 - query.omega_i.norm()));
-                Vector3 omega_o_3(omega_o(0), omega_o(1), sqrt(1.0 - omega_o.norm()));
-                Vector2 omega_h = (omega_i_3 + omega_o_3).normalized().head(2);
-
-                Vector2 xy = (omega_h + Vector2(1.0, 1.0)) / 2.0 * ndfResolution;
-
-                int xInt = (int)(xy(0));
-                int yInt = (int)(xy(1));
-                if (xInt < 0 || xInt >= ndfResolution ||
-                    yInt < 0 || yInt >= ndfResolution)
-                    continue;
-
-                Float D = ndfImage(xInt, yInt);
-                Float F = 1.0;
-                Float G = 1.0;
-                Float cosThetaI = sqrt(abs(1.0 - query.omega_i.dot(query.omega_i)));
-                Float cosThetaO = sqrt(abs(1.0 - omega_o.dot(omega_o)));
-                Float brdfValue = D * F * G / (4.0 * cosThetaI * cosThetaO);
-
-                if (std::isnan(brdfValue / numSamples))
-                    continue;
-
-                brdfImage.r(i, j) += brdfValue / numSamples;
-                brdfImage.g(i, j) += brdfValue / numSamples;
-                brdfImage.b(i, j) += brdfValue / numSamples;
-            }
-        }
-    }
-
-    return brdfImage;
 }

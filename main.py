@@ -3,12 +3,18 @@ from options import args
 from WaveOpticsBrdfWithPybind.exrimage import EXRImage
 from WaveOpticsBrdfWithPybind.heightfield import Heightfield, GaborBasis
 from WaveOpticsBrdfWithPybind.gaborkernel import GaborKernel, GaborKernelPrime
-from WaveOpticsBrdfWithPybind.brdf import initialize, makeQuery, Query, BrdfImage, GeometricBrdf, WaveBrdfAccel
+from WaveOpticsBrdfWithPybind.brdf import initialize, makeQuery, Query, BrdfImage, WaveBrdfAccel
 
 # Setup
 initialize()
 query = makeQuery(args.x, args.y, args.sigma, args.lambda_, args.light_x, args.light_y)
 refImage = EXRImage(args.reference_path)
+
+# Cut smaller
+refImage.width = refImage.height = w = h = args.resolution = 32
+refImage.values = refImage.values[0:w, 0:h]
+
+
 brdfFunction = WaveBrdfAccel(args.diff_model, refImage.width, refImage.height, args.texel_width, args.resolution)
 
 # Generate reference BRDF output
@@ -20,15 +26,18 @@ refResult = brdfFunction.genBrdfImage(query, refGaborBasis)
 
 # Test if heightfield read correctly
 # hf = Heightfield(refGaborBasis, refImage.width, refImage.height, args.texel_width, args.vert_scale)
-# print("Heightfield difference", np.norm(np.subtract(hf.values, refHeightfield.values)))
+# print("Heightfield difference", np.sum(np.square(np.subtract(hf.values, refHeightfield.values))))
 # EXRImage.writeImage(hf.values, hf.width, hf.height, "Results/test.exr")
 
 
 # Generate hypothesis
 heightfield = Heightfield(np.zeros((refImage.width, refImage.height)), refImage.width, refImage.height, args.texel_width, args.vert_scale)
-gaborBasis = GaborBasis(heightfield)
-result = brdfFunction.genBrdfImageDiff(query, heightfield)
-# EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, "Results/starting_hypothesis.exr")
+# gaborBasis = GaborBasis(heightfield)
+result = brdfFunction.genBrdfImageDiff(query, heightfield, refResult)
+print(result.r)
+EXRImage.writeImage(result.r, args.resolution, args.resolution, "Results/testtest.exr")
+
+# brdfFunction.backpropagate(np.sum(np.square(np.subtract(result.r, refResult.r))), heightfield)
 
 # Test single input change
 # array = np.zeros((refImage.width, refImage.height))
