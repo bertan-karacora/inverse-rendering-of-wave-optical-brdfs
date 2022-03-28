@@ -19,4 +19,10 @@ void XYZToRGB(float x, float y, float z, float &r, float &g, float &b);
 
 void SpectrumToRGB(const vector<float> &s, float &r, float &g, float &b);
 
+void SpectrumToXYZ(const vector<FloatD> &s, FloatD &x, FloatD &y, FloatD &z);
+
+void XYZToRGB(FloatD x, FloatD y, FloatD z, FloatD &r, FloatD &g, FloatD &b);
+
+void SpectrumToRGB(const vector<FloatD> &s, FloatD &r, FloatD &g, FloatD &b);
+
 #endif

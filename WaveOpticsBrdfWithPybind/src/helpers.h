@@ -30,10 +30,12 @@
 
 typedef float Float;
 
-using FloatC = enoki::CUDAArray<Float>;
-using FloatD = enoki::DiffArray<FloatC>;
+// using FloatC = enoki::CUDAArray<Float>;
+using FloatD = enoki::DiffArray<Float>;
 using Vector2fD = enoki::Array<FloatD, 2>;
+using Vector3fD = enoki::Array<FloatD, 3>;
 using ComplexfD = enoki::Complex<FloatD>;
+using FloatXXD = enoki::Array<enoki::Array<FloatD, 32>, 32>;
 
 using namespace std;
 namespace py = pybind11;
@@ -53,7 +55,7 @@ inline Float G(Float x, Float mu, Float sigma) {
 }
 
 inline FloatD G(Float x, FloatD mu, Float sigma) {
-    return 1.0 / (sqrt(2.0 * M_PI) * sigma) * enoki::exp(-0.5 * enoki::pow((x - mu) / sigma, 2.0));
+    return 1.0f / (sqrt(2.0f * M_PI) * sigma) * enoki::exp(-0.5f * enoki::pow((x - mu) / sigma, 2.0f));
 }
 
 inline Float G(Vector2 x, Vector2 mu, Float sigma) {

@@ -9,7 +9,7 @@ class HeightfieldDiff;
 class GaborBasisDiff {
     public:
         GaborBasisDiff() {};
-        GaborBasisDiff(HeightfieldDiff heightfield);
+        GaborBasisDiff(const HeightfieldDiff &hf);
 
     public:
         vector<vector<GaborKernelPrimeDiff>> gaborKernelPrime;
@@ -31,7 +31,7 @@ class HeightfieldDiff {
         Vector2fD n(Float i, Float j);
 
     public:
-        enoki::Array<enoki::Array<FloatD, 32>, 32> values;
+        FloatXXD values;
         int width, height;
         Float texelWidth;   // in microns.
         Float vertScale;
@@ -46,15 +46,15 @@ class HeightfieldDiff {
         }
         
         inline FloatD hpx(int x, int y) {
-            return (values[mod(x + 1, height)][mod(y, width)] - values[mod(x - 1, height)][mod(y, width)]) / 2.0;
+            return (values[mod(x + 1, height)][mod(y, width)] - values[mod(x - 1, height)][mod(y, width)]) / 2.0f;
         }
         
         inline FloatD hpy(int x, int y) {
-            return (values[mod(x, height)][mod(y + 1, width)] - values[mod(x, height)][mod(y - 1, width)]) / 2.0;
+            return (values[mod(x, height)][mod(y + 1, width)] - values[mod(x, height)][mod(y - 1, width)]) / 2.0f;
         }
         
         inline FloatD hpxy(int x, int y) {
-            return (hp(x + 1, y + 1) - hp(x + 1, y) - hp(x, y + 1) + 2.0 * hp(x, y) - hp(x - 1, y) - hp(x, y - 1) + hp(x - 1, y - 1)) / 2.0;
+            return (hp(x + 1, y + 1) - hp(x + 1, y) - hp(x, y + 1) + 2.0f * hp(x, y) - hp(x - 1, y) - hp(x, y - 1) + hp(x - 1, y - 1)) / 2.0f;
         }
 };
 

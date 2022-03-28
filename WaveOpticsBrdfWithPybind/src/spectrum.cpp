@@ -45,7 +45,26 @@ void SpectrumToXYZ(const vector<float> &s, float &x, float &y, float &z) {
     //     printf("%f %f %f\n", x, y, z);
 }
 
+void SpectrumToXYZ(const vector<FloatD> &s, FloatD &x, FloatD &y, FloatD &z) {
+    x = y = z = 0.0f;
+    for (size_t i = 0; i < SPECTRUM_SAMPLES; ++i) {
+        x += CIE_X[i] * s[i];
+        y += CIE_Y[i] * s[i];
+        z += CIE_Z[i] * s[i];
+    }
+    x *= CIE_normalization;
+    y *= CIE_normalization;
+    z *= CIE_normalization;
+}
+
 void XYZToRGB(float x, float y, float z, float &r, float &g, float &b) {
+    /* Convert from XYZ tristimulus values to ITU-R Rec. BT.709 linear RGB */
+    r =  3.240479f * x + -1.537150f * y + -0.498535f * z;
+    g = -0.969256f * x +  1.875991f * y +  0.041556f * z;
+    b =  0.055648f * x + -0.204043f * y +  1.057311f * z;
+}
+
+void XYZToRGB(FloatD x, FloatD y, FloatD z, FloatD &r, FloatD &g, FloatD &b) {
     /* Convert from XYZ tristimulus values to ITU-R Rec. BT.709 linear RGB */
     r =  3.240479f * x + -1.537150f * y + -0.498535f * z;
     g = -0.969256f * x +  1.875991f * y +  0.041556f * z;
@@ -54,6 +73,12 @@ void XYZToRGB(float x, float y, float z, float &r, float &g, float &b) {
 
 void SpectrumToRGB(const vector<float> &s, float &r, float &g, float &b) {
     float x, y, z;
+    SpectrumToXYZ(s, x, y, z);
+    XYZToRGB(x, y, z, r, g, b);
+}
+
+void SpectrumToRGB(const vector<FloatD> &s, FloatD &r, FloatD &g, FloatD &b) {
+    FloatD x, y, z;
     SpectrumToXYZ(s, x, y, z);
     XYZToRGB(x, y, z, r, g, b);
 }

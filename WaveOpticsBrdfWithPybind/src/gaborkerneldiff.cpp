@@ -26,22 +26,22 @@ PYBIND11_MODULE(gaborkerneldiff, m) {
 
 
 ComplexfD GaborKernelDiff::eval(Vector2 s) {
-    return C * G(s, mu, sigma) * cnis(2.0 * M_PI * enoki::dot(a, enoki::Array<Float, 2>(s[0], s[1])));
+    return C * G(s, mu, sigma) * cnis(2.0f * M_PIf * enoki::dot(a, enoki::Array<Float, 2>(s[0], s[1])));
 }
 
 ComplexfD GaborKernelDiff::xform(Vector2 u) {
     Float sigmaPrime = Float(1.0 / (2.0 * M_PI * sigma));
-    ComplexfD CPrime = C * Float(1.0 / (2.0 * M_PI * sigma * sigma)) * cnis(2.0 * M_PI * enoki::dot(a, mu));
+    ComplexfD CPrime = C * Float(1.0 / (2.0 * M_PI * sigma * sigma)) * cnis(2.0f * M_PIf * enoki::dot(a, mu));
     GaborKernelDiff g(-a, sigmaPrime, mu, CPrime);
     return g.eval(u);
 }
 
 GaborKernelDiff GaborKernelPrimeDiff::toGaborKernel(Float lambda) {
     Float l = sigma * SCALE_FACTOR;
-    ComplexfD C = l * l * cnis(4.0 * M_PI / lambda * cInfo);
+    ComplexfD C = l * l * cnis(4.0f * M_PIf / lambda * cInfo);
     Vector2fD a = aInfo / lambda;
 
-    return GaborKernelDiff(enoki::Array<Float, 2>(mu[0], mu[1]), sigma, a, C);
+    return GaborKernelDiff(Vector2fD(mu[0], mu[1]), sigma, a, C);
 }
 
 Vector2fD GaborKernelPrimeDiff::getFFTCenter(Float lambda) {

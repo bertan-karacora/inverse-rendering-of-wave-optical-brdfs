@@ -31,10 +31,11 @@ EXRImage.writeImageRGB(refResult.r, refResult.g, refResult.b, args.resolution, a
 
 # Generate hypothesis
 heightfield = HeightfieldDiff(np.zeros((refImage.width, refImage.height)), refImage.width, refImage.height, args.texel_width, args.vert_scale)
-gaborbasis = GaborBasisDiff(heightfield)
+# heightfield = HeightfieldDiff(refImage.values, refImage.width, refImage.height, args.texel_width, args.vert_scale)
+# gaborbasis = GaborBasisDiff(heightfield)
 result = brdfFunction.genBrdfImageDiff(query, heightfield, refResult)
-# print(result.r)
-# EXRImage.writeImage(result.r, args.resolution, args.resolution, "Results/testtest.exr")
+print(result.grad)
+EXRImage.writeImage(result.grad, args.resolution, args.resolution, "Results/testtest.exr")
 
 
 
