@@ -3,7 +3,9 @@
 
 #include "helpers.h"
 #include "heightfield.h"
+#include "heightfielddiff.h"
 #include "gaborkernel.h"
+#include "gaborkerneldiff.h"
 #include "spectrum.h"
 
 struct Query {
@@ -29,8 +31,7 @@ class WaveBrdfAccel {
         comp queryIntegral(const Query &query, const GaborBasis &gaborBasis, int layer, int xIndex, int yIndex);
         Float queryBrdf(const Query &query, const GaborBasis &gaborBasis);
         BrdfImage genBrdfImage(const Query &query, const GaborBasis &gaborBasis);
-        BrdfImage genBrdfImageDiff(const Query &query, Heightfield &heightfield, BrdfImage ref);
-        // vector<Float> backpropagate(Float loss, Heightfield &heightfield);
+        void genBrdfImageDiff(const Query &query, const HeightfieldDiff &hf, BrdfImage ref);
 
     public:
         string diff_model;

@@ -1,27 +1,24 @@
-#include "heightfield.h"
+#include "heightfielddiff.h"
 
 
-PYBIND11_MODULE(heightfield, m) {
-    py::class_<GaborBasis>(m, "GaborBasis")
-        .def(py::init<>())
-        .def(py::init<Heightfield>())
-        .def_readwrite("gaborKernelPrime", &GaborBasis::gaborKernelPrime)
-        .def_readwrite("angularBB", &GaborBasis::angularBB)
-        .def_readwrite("topLayer", &GaborBasis::topLayer);
-
-    py::class_<Heightfield>(m, "Heightfield")
+PYBIND11_MODULE(heightfielddiff, m) {
+    py::class_<HeightfieldDiff>(m, "HeightfieldDiff")
         .def(py::init<>())
         .def(py::init<Eigen::MatrixXf, int, int, Float, Float>())
-        .def(py::init<GaborBasis, int, int, Float, Float>())
-        .def_readwrite("width", &Heightfield::width)
-        .def_readwrite("height", &Heightfield::height)
-        .def_readwrite("values", &Heightfield::values)
-        .def_readwrite("texelWidth", &Heightfield::texelWidth)
-        .def_readwrite("vertScale", &Heightfield::vertScale)
-        .def("getValue", &Heightfield::getValue)
-        .def("getValueUV", &Heightfield::getValueUV)
-        .def("g", &Heightfield::g)
-        .def("n", &Heightfield::n);   
+        .def(py::init<GaborBasisDiff, int, int, Float, Float>())
+        .def_readwrite("width", &HeightfieldDiff::width)
+        .def_readwrite("height", &HeightfieldDiff::height)
+        .def_readwrite("values", &HeightfieldDiff::values)
+        .def_readwrite("texelWidth", &HeightfieldDiff::texelWidth)
+        .def_readwrite("vertScale", &HeightfieldDiff::vertScale)
+        .def("g", &HeightfieldDiff::g);
+
+    py::class_<GaborBasisDiff>(m, "GaborBasisDiff")
+        .def(py::init<>())
+        .def(py::init<HeightfieldDiff>())
+        .def_readwrite("gaborKernelPrime", &GaborBasisDiff::gaborKernelPrime)
+        .def_readwrite("angularBB", &GaborBasisDiff::angularBB)
+        .def_readwrite("topLayer", &GaborBasisDiff::topLayer);
 }
 
 
@@ -42,52 +39,48 @@ Float A_inv[16][16] = {{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
                        {-6, 6, 6, -6, -4, -2, 4, 2, -3, 3, -3, 3, -2, -1, -2, -1},
                        {4, -4, -4, 4, 2, 2, -2, -2, 2, -2, 2, -2, 1, 1, 1, 1}};
 
-Heightfield::Heightfield(Eigen::MatrixXf values, int width, int height, Float texelWidth, Float vertScale) {
+
+HeightfieldDiff::HeightfieldDiff(Eigen::MatrixXf values, int width, int height, Float texelWidth, Float vertScale) {
     cout << "Generating Heightfield from Numpy..." << endl;
 
     this->texelWidth = texelWidth;
     this->vertScale = vertScale;
     this->width = width;
     this->height = height;
-    this->values = values;
+
+    for (int i = 0; i < width; i++) {
+        for (int j = 0; j < height; j++) {
+            this->values[i][j] = FloatD(values(i, j));
+        }
+    }
 
     cout << "Generating Heightfield from Numpy finished!" << endl;
 }
 
-Heightfield::Heightfield(GaborBasis gaborBasis, int width, int height, Float texelWidth, Float vertScale) {
+HeightfieldDiff::HeightfieldDiff(GaborBasisDiff gaborBasis, int width, int height, Float texelWidth, Float vertScale) {
     cout << "Generating Heightfield from GaborBasis..." << endl;
 
     this->texelWidth = texelWidth;
     this->vertScale = vertScale;
     this->width = width;
     this->height = height;
-    this->values = Eigen::MatrixXf(this->width, this->height);
 
     for (int i = 0; i < this->height; i++) {
         for (int j = 0; j < this->width; j++) {
-            this->values(i, j) = (gaborBasis.gaborKernelPrime[i][j].aInfo / 2.0).dot(Eigen::Vector2f(i, j)) + gaborBasis.gaborKernelPrime[i][j].cInfo;
+            this->values[i][j] = enoki::dot(gaborBasis.gaborKernelPrime[i][j].aInfo / 2.0, enoki::Array<Float, 2>(i, j)) + gaborBasis.gaborKernelPrime[i][j].cInfo;
         }
     }
 
     cout << "Generating Heightfield from GaborBasis finished!" << endl;
 }
 
-void Heightfield::computeCoeff(Float *alpha, const Float *x) {
-    memset(alpha, 0, sizeof(Float) * 16);
-    for (int i = 0; i < 16; i++) {
-        for (int j = 0; j < 16; j++) {
-            alpha[i] += A_inv[i][j] * x[j];
-        }
-    }
-}
-
 // Bicubic interpolation
-Float Heightfield::getValue(Float x, Float y) {
+FloatD HeightfieldDiff::getValue(Float x, Float y) {
     return getValueUV(x / height, y / width);
 }
 
 // Bicubic interpolation
-Float Heightfield::getValueUV(Float u, Float v) {
+FloatD HeightfieldDiff::getValueUV(Float u, Float v) {
     Float x = u * height;
     Float y = v * width;
     int x1 = (int) floor(x);
@@ -95,57 +88,43 @@ Float Heightfield::getValueUV(Float u, Float v) {
     int x2 = x1 + 1;
     int y2 = y1 + 1;
 
-    Float a[16];
-    Float xp[16] = {hp(x1, y1), hp(x2, y1), hp(x1, y2), hp(x2, y2),
+    enoki::Array<FloatD, 16> a(FloatD(0.0));
+    enoki::Array<FloatD, 16> xp(hp(x1, y1), hp(x2, y1), hp(x1, y2), hp(x2, y2),
                     hpx(x1, y1), hpx(x2, y1), hpx(x1, y2), hpx(x2, y2),
                     hpy(x1, y1), hpy(x2, y1), hpy(x1, y2), hpy(x2, y2),
-                    hpxy(x1, y1), hpxy(x2, y1), hpxy(x1, y2), hpxy(x2, y2)};
+                    hpxy(x1, y1), hpxy(x2, y1), hpxy(x1, y2), hpxy(x2, y2));
 
-    computeCoeff(a, xp);
-
-    Float coeffA[4][4] = {{a[0], a[4], a[8], a[12]},
-                          {a[1], a[5], a[9], a[13]},
-                          {a[2], a[6], a[10], a[14]},
-                          {a[3], a[7], a[11], a[15]}};
+    for (int i = 0; i < 16; i++) {
+        for (int j = 0; j < 16; j++) {
+            a[i] += A_inv[i][j] * xp[j];
+        }
+    }
     
-    Float h = 0.0f;
+    FloatD h = 0.0;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
-            h += coeffA[i][j] * pow(x - x1, (Float)(i)) * pow(y - y1, (Float)(j));
+            h += a[i * 4 + j] * pow(x - x1, (Float)(i)) * pow(y - y1, (Float)(j));
         }
     }
 
     return h;
 }
 
-GaborKernel Heightfield::g(int i, int j, Float F, Float lambda) {
-    Vector2 m_k(Float((i + 0.5) * texelWidth), Float((j + 0.5) * texelWidth));
-    Float l_k = texelWidth;
+GaborKernelDiff HeightfieldDiff::g(int i, int j, Float F, Float lambda) {
+    Vector2fD m_k(Float((i + 0.5) * texelWidth), Float((j + 0.5) * texelWidth));
 
-    Vector2 mu_k = m_k;
-    Float sigma_k = l_k / SCALE_FACTOR;
+    Float sigma_k = texelWidth / SCALE_FACTOR;
+    FloatD H_mk = getValue(i + 0.5, j + 0.5) * texelWidth * vertScale;   // Assuming texelWidth doesn't affect the heightfield's shape.
+    Vector2fD HPrime_mk((getValue(i + 1, j) - getValue(i, j)) * vertScale,
+                      (getValue(i, j + 1) - getValue(i, j)) * vertScale);
 
-    Float H_mk = getValue(i + 0.5, j + 0.5) * texelWidth * vertScale;   // Assuming texelWidth doesn't affect the heightfield's shape.
-    Vector2 HPrime_mk(Float((getValue(i + 1, j) - getValue(i, j)) * vertScale),
-                      Float((getValue(i, j + 1) - getValue(i, j)) * vertScale));
+    ComplexfD C_k = sqrt(F) * texelWidth * texelWidth * cnis(4.0 * M_PI / lambda * (H_mk - enoki::dot(HPrime_mk, m_k)));
+    Vector2fD a_k = 2.0 * HPrime_mk / lambda;
 
-    comp C_k = sqrt(F) * l_k * l_k * cnis(4.0 * M_PI / lambda * (H_mk - HPrime_mk.dot(m_k)));
-    Vector2 a_k = 2.0 * HPrime_mk / lambda;
-
-    return GaborKernel(mu_k, sigma_k, a_k, C_k);
+    return GaborKernelDiff(m_k, sigma_k, a_k, C_k);
 }
 
-Vector2 Heightfield::n(Float i, Float j) {
-    Vector2 HPrime(Float((getValue(i + 0.5f, j) - getValue(i - 0.5f, j)) * vertScale),
-                   Float((getValue(i, j + 0.5f) - getValue(i, j - 0.5f)) * vertScale));
-
-    Vector3 n(-HPrime(0), -HPrime(1), Float(1.0));
-    n.normalize();
-
-    return n.head(2);
-}
-
-GaborBasis::GaborBasis(Heightfield heightfield) {
+GaborBasisDiff::GaborBasisDiff(HeightfieldDiff heightfield) {
     cout << "Generating GaborBasis from Heightfield..." << endl;
 
     assert(heightfield.height == heightfield.width);
@@ -159,13 +138,14 @@ GaborBasis::GaborBasis(Heightfield heightfield) {
     for (int i = 0; i < heightfield.height; i++) {
         angularBBLayer.push_back(vector<AABB>());
         angularBBLayer.back().reserve(heightfield.width);
-        gaborKernelPrime.push_back(vector<GaborKernelPrime>());
+        cout << i << endl;
+        gaborKernelPrime.push_back(vector<GaborKernelPrimeDiff>());
         gaborKernelPrime.back().reserve(heightfield.width);
     }
 
     #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < heightfield.height; i++) {
-        vector<GaborKernelPrime> &gaborKernelPrimeRow = gaborKernelPrime[i];
+        vector<GaborKernelPrimeDiff> &gaborKernelPrimeRow = gaborKernelPrime[i];
         vector<AABB> &angularBBRow = angularBBLayer[i];
         for (int j = 0; j < heightfield.width; j++) {
             cout << "\rRow " << i << " | Col " << j << "\t\r" << flush;
@@ -174,16 +154,17 @@ GaborBasis::GaborBasis(Heightfield heightfield) {
 
             Vector2 mu_k = m_k;
             Float sigma_k = l_k / SCALE_FACTOR;
-            Float H_mk = heightfield.getValue(i, j) * heightfield.texelWidth * heightfield.vertScale;   // Assuming texelWidth doesn't affect the heightfield's shape.
+            FloatD H_mk = heightfield.getValue(i, j) * heightfield.texelWidth * heightfield.vertScale;   // Assuming texelWidth doesn't affect the heightfield's shape.
 
-            Vector2 HPrime_mk(Float((heightfield.getValue(i + 1, j) - heightfield.getValue(i - 1, j)) / 2.0 * heightfield.vertScale),
-                                    Float((heightfield.getValue(i, j + 1) - heightfield.getValue(i, j - 1)) / 2.0 * heightfield.vertScale));
+            Vector2fD HPrime_mk(((heightfield.getValue(i + 1, j) - heightfield.getValue(i - 1, j)) / 2.0 * heightfield.vertScale),
+                                    ((heightfield.getValue(i, j + 1) - heightfield.getValue(i, j - 1)) / 2.0 * heightfield.vertScale));
 
-            Float cInfo_k = H_mk - HPrime_mk.dot(m_k);
-            Vector2 aInfo_k = 2.0 * HPrime_mk;
+            FloatD cInfo_k = H_mk - enoki::dot(HPrime_mk, enoki::Array<Float, 2>(Float((i + 0.5) * heightfield.texelWidth), Float((j + 0.5) * heightfield.texelWidth)));
+            Vector2fD aInfo_k = 2.0 * HPrime_mk;
 
-            gaborKernelPrimeRow.push_back(GaborKernelPrime(mu_k, sigma_k, aInfo_k, cInfo_k));
-            angularBBRow.push_back(AABB(-aInfo_k(0), -aInfo_k(0), -aInfo_k(1), -aInfo_k(1)));
+            gaborKernelPrimeRow.push_back(GaborKernelPrimeDiff(mu_k, sigma_k, aInfo_k, cInfo_k));
+            // FloatC aInfo_k_cpu = enoki::detach(aInfo_k);
+            angularBBRow.push_back(AABB(-aInfo_k[0][0], -aInfo_k[0][0], -aInfo_k[1][0], -aInfo_k[1][0]));
         }
     }
 

@@ -235,44 +235,33 @@ BrdfImage WaveBrdfAccel::genBrdfImage(const Query &query, const GaborBasis &gabo
     return brdfImage;
 }
 
-BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, Heightfield &heightfield, BrdfImage ref) {
-    // enoki::set_requires_gradient(heightfield.valuesDiff);
-
-    cout << heightfield.valuesDiff << endl;
-
-
-
-
-    FloatD loss = heightfield.valuesDiff[1];
-
-    // FloatD loss = enoki::norm(0.0);
-
-    // FloatD loss = enoki::norm(FloatD::copy(output.r.data(), output.r.size()) - FloatD::copy(ref.r.data(), ref.r.size()));
-
-    enoki::backward(loss);
-
-    FloatD grad = enoki::gradient(heightfield.valuesDiff);
-    cout << grad << endl;
-
-    // cout << enoki::graphviz(loss) << endl;
-
-    cout << enoki::cuda_whos() << endl;
-
-
-
-
-
-    GaborBasis gaborBasis(heightfield, true);
-
-    BrdfImage output = genBrdfImage(query, gaborBasis);
+void WaveBrdfAccel::genBrdfImageDiff(const Query &query, const HeightfieldDiff &hf, BrdfImage ref) {
+    HeightfieldDiff heightfield = hf;
 
     for (int i = 0; i < heightfield.height; i++) {
         for (int j = 0; j < heightfield.width; j++) {
-            output.r(i, j) = grad[i * heightfield.width + j];
+            cout << heightfield.values[i][j] << endl;
+            enoki::set_requires_gradient(heightfield.values[i][j]);
         }
     }
 
-    return output;
+    // GaborBasisDiff gaborBasis(heightfield);
+
+    // FloatD loss = gaborBasis.gaborKernelPrime[0][0].cInfo;
+
+    // FloatD loss = enoki::norm(output - FloatD::copy(ref.r.data(), ref.r.size()));
+
+    // enoki::backward(loss);
+
+    // FloatD grad = enoki::gradient(heightfield.values[0][0]);
+    // cout << grad << endl;
+
+    // cout << enoki::graphviz(loss) << endl;
+
+    // cout << enoki::cuda_whos() << endl;
+
+    // return output;
+    // return genBrdfImage(query, GaborBasis(Heightfield(values, width, height, texelWidth, 1.0f)));
 }
 
 inline Vector2 sampleGauss2d(Float r1, Float r2) {

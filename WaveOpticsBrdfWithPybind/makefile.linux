@@ -8,7 +8,7 @@ INCLUDES         	:= -I /usr/include/python3.8 -I /usr/include/OpenEXR -I /usr/i
 LIBRARIES			:= -L /usr/local/cuda-11.6/lib64 -L ../extern/enoki/build -l enoki-cuda -l enoki-autodiff -L ../extern/enoki/build/enoki -l :core$(SUFFIX) -l :cuda_autodiff$(SUFFIX)  -l :cuda$(SUFFIX)  -l :dynamic$(SUFFIX)  -l :scalar$(SUFFIX)
 
 
-all: directories exrimage heightfield gaborkernel brdf
+all: directories exrimage heightfield heightfielddiff gaborkernel gaborkerneldiff brdf
 
 directories:
 	mkdir -p $(BUILDDIR)
@@ -19,7 +19,9 @@ clean:
 	rm -rf $(BUILDDIR)
 	rm -rf exrimage$(SUFFIX)
 	rm -rf heightfield$(SUFFIX)
+	rm -rf heightfielddiff$(SUFFIX)
 	rm -rf gaborkernel$(SUFFIX)
+	rm -rf gaborkerneldiff$(SUFFIX)
 	rm -rf brdf$(SUFFIX)
 
 
@@ -29,7 +31,13 @@ exrimage: $(BUILDDIR)/exrimage.o
 heightfield: $(BUILDDIR)/heightfield.o
 	g++ $(CFLAGS) $^ -o $@$(SUFFIX) $(INCLUDES) $(LIBRARIES) -lIlmImf -lHalf
 
+heightfielddiff: $(BUILDDIR)/heightfielddiff.o
+	g++ $(CFLAGS) $^ -o $@$(SUFFIX) $(INCLUDES) $(LIBRARIES) -lIlmImf -lHalf
+
 gaborkernel: $(BUILDDIR)/gaborkernel.o
+	g++ $(CFLAGS) $^ -o $@$(SUFFIX) $(INCLUDES) $(LIBRARIES) -lIlmImf -lHalf
+
+gaborkerneldiff: $(BUILDDIR)/gaborkerneldiff.o
 	g++ $(CFLAGS) $^ -o $@$(SUFFIX) $(INCLUDES) $(LIBRARIES) -lIlmImf -lHalf
 
 brdf: $(BUILDDIR)/spectrum.o $(BUILDDIR)/gaborkernel.o $(BUILDDIR)/heightfield.o $(SOURCEDIR)/brdf.h $(SOURCEDIR)/brdf.cpp

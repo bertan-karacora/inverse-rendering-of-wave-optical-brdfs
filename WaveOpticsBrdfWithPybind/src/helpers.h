@@ -5,6 +5,9 @@
 #define M_2PIf 6.28318530718f
 #define M_2PIf_inv 0.15915494309f
 
+#define SCALE_FACTOR 2.0
+// #define SCALE_FACTOR 2.35482004503
+
 #include <cmath>
 #include <complex>
 #include <cstdlib>
@@ -23,12 +26,14 @@
 #include <enoki/python.h>
 #include <enoki/autodiff.h>
 #include <enoki/cuda.h>
+#include <enoki/complex.h>
 
 typedef float Float;
 
 using FloatC = enoki::CUDAArray<Float>;
 using FloatD = enoki::DiffArray<FloatC>;
-template <size_t size> using MatrixD = enoki::Array<enoki::Array<FloatD, size>>;
+using Vector2fD = enoki::Array<FloatD, 2>;
+using ComplexfD = enoki::Complex<FloatD>;
 
 using namespace std;
 namespace py = pybind11;
@@ -47,8 +52,16 @@ inline Float G(Float x, Float mu, Float sigma) {
     return 1.0 / (sqrt(2.0 * M_PI) * sigma) * exp(-0.5 * pow((x - mu) / sigma, 2.0));
 }
 
+inline FloatD G(Float x, FloatD mu, Float sigma) {
+    return 1.0 / (sqrt(2.0 * M_PI) * sigma) * enoki::exp(-0.5 * enoki::pow((x - mu) / sigma, 2.0));
+}
+
 inline Float G(Vector2 x, Vector2 mu, Float sigma) {
     return G(x(0), mu(0), sigma) * G(x(1), mu(1), sigma);
+}
+
+inline FloatD G(Vector2 x, Vector2fD mu, Float sigma) {
+    return G(x(0), mu[0], sigma) * G(x(1), mu[1], sigma);
 }
 
 inline Float GRot(Float x, Float mu, Float sigma, Float period) {
@@ -73,6 +86,10 @@ inline comp cnis(Float x) {
     // sincosf(x, &sinx, &cosx);
     // return comp(cosx, -sinx);
    return comp(std::cos(x), -std::sin(x));
+}
+
+inline ComplexfD cnis(FloatD x) {
+   return ComplexfD(enoki::cos(x), -enoki::sin(x));
 }
 
 template <class T>

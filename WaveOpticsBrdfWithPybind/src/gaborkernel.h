@@ -1,9 +1,6 @@
 #ifndef GABOR_KERNEL_H
 #define GABOR_KERNEL_H
 
-#define SCALE_FACTOR 2.0
-// #define SCALE_FACTOR 2.35482004503
-
 #include "helpers.h"
 
 class GaborKernel {
