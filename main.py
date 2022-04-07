@@ -16,7 +16,10 @@ refImage = EXRImage(args.reference_path)
 
 # Cut smaller
 refImage.width = refImage.height = w = h = args.resolution
-refImage.values = refImage.values[0:w, 0:h]
+x_off = 0
+y_off = 0
+refImage.values = refImage.values[x_off:x_off+w, y_off:y_off+h]
+EXRImage.writeImage(refImage.values, args.resolution, args.resolution, "Results/Reference.exr")
 
 
 brdfFunction = WaveBrdfAccel(args.diff_model, refImage.width, refImage.height, args.texel_width, args.resolution)
@@ -33,9 +36,29 @@ EXRImage.writeImageRGB(refResult.r, refResult.g, refResult.b, args.resolution, a
 heightfield = HeightfieldDiff(np.zeros((refImage.width, refImage.height)), refImage.width, refImage.height, args.texel_width, args.vert_scale)
 # heightfield = HeightfieldDiff(refImage.values, refImage.width, refImage.height, args.texel_width, args.vert_scale)
 # gaborbasis = GaborBasisDiff(heightfield)
+EXRImage.writeImage(np.transpose(heightfield.values[0]), args.resolution, args.resolution, "Results/hypo_0.exr")
 result = brdfFunction.genBrdfImageDiff(query, heightfield, refResult)
-print(result.grad)
-EXRImage.writeImage(result.grad, args.resolution, args.resolution, "Results/testtest.exr")
+EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, "Results/Brdf_0.exr")
+EXRImage.writeImageRGB(np.subtract(result.r, refResult.r), np.subtract(result.g, refResult.g), np.subtract(result.b, refResult.b), args.resolution, args.resolution, "Results/diff_0.exr")
+EXRImage.writeImage(result.grad, args.resolution, args.resolution, "Results/grad_0.exr")
+
+# Learning rate for stochastic gradient descent
+lr = 0.005
+
+# Optimization
+for i in range(args.iterations):
+    heightfield = HeightfieldDiff(np.transpose(heightfield.values[0]) - result.grad * lr, refImage.width, refImage.height, args.texel_width, args.vert_scale)
+    EXRImage.writeImage(np.transpose(heightfield.values[0]), args.resolution, args.resolution, f"Results/hypo_{i}.exr")
+    # EXRImage.writeImage(np.square(np.subtract(heightfield.values, refHeightfield.values)), heightfield.width, heightfield.height, f"Results/HeightfieldResiduum_{i}.exr")
+    opVal = np.sum(np.square(np.subtract(np.transpose(heightfield.values[0]), refHeightfield.values)))
+    print("Real diff: ", opVal)
+    # np.subtract(result.r, refResult.r), np.subtract(result.g, refResult.g), np.subtract(result.b, refResult.b)
+    opVal2 = np.sum(np.square(np.subtract(result.r, refResult.r)))
+    print("Objective: ", opVal2)
+
+    result = brdfFunction.genBrdfImageDiff(query, heightfield, refResult)
+    EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, f"Results/Brdf_{i}.exr")
+    EXRImage.writeImage(result.grad, args.resolution, args.resolution, f"Results/grad_{i}.exr")
 
 
 
@@ -50,15 +73,6 @@ EXRImage.writeImage(result.grad, args.resolution, args.resolution, "Results/test
 # print("Differenz: ", np.sum(result.r - result2.r))
 # EXRImage.writeImage(np.square(np.subtract(result.r, result2.r)), args.resolution, args.resolution, "Results/testdifference.exr")
 
-# Optimization
-# for i in range(args.iterations):
-#     heightfield = Heightfield(gaborBasis, refImage.width, refImage.height, args.texel_width, args.vert_scale)
-#     EXRImage.writeImage(np.square(np.subtract(heightfield.values, refHeightfield.values)), heightfield.width, heightfield.height, f"Results/HeightfieldResiduum_{i}.exr")
-#     opVal = np.sum(np.square(np.subtract(heightfield.values, refHeightfield.values)))
-#     print(opVal)
-
-#     result = brdfFunction.genBrdfImage(query, gaborBasis)
-#     EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, f"Results/Brdf_{i}.exr")
 
 # Test differentiation
 # manipulate gaborBasis

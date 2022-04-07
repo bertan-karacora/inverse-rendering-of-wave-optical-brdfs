@@ -364,10 +364,15 @@ BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, const HeightfieldD
     Eigen::MatrixXf brdfImage_r(resolution, resolution);
     Eigen::MatrixXf brdfImage_g(resolution, resolution);
     Eigen::MatrixXf brdfImage_b(resolution, resolution);
+    Eigen::MatrixXf brdfImage_grad(resolution, resolution);
 
-    enoki::Array<FloatD, 32*32> diff_r;
-    enoki::Array<FloatD, 32*32> diff_g;
-    enoki::Array<FloatD, 32*32> diff_b;
+    enoki::Array<FloatD, 16*16> diff_r;
+    enoki::Array<FloatD, 16*16> diff_g;
+    enoki::Array<FloatD, 16*16> diff_b;
+
+    // enoki::Array<FloatD, 32*32> diff_r;
+    // enoki::Array<FloatD, 32*32> diff_g;
+    // enoki::Array<FloatD, 32*32> diff_b;
 
     // #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < resolution; i++) {
@@ -420,9 +425,11 @@ BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, const HeightfieldD
 
     for (int i = 0; i < heightfield.height; i++) {
         for (int j = 0; j < heightfield.width; j++) {
-            brdfImage.grad(i, j) = enoki::gradient(heightfield.values[i][j]);
+            brdfImage_grad(i, j) = enoki::gradient(heightfield.values[i][j]);
         }
     }
+
+    brdfImage.grad = brdfImage_grad;
 
     // cout << enoki::graphviz(loss) << endl;
 

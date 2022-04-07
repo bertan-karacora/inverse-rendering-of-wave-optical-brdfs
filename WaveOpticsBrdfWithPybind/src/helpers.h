@@ -35,7 +35,8 @@ using FloatD = enoki::DiffArray<Float>;
 using Vector2fD = enoki::Array<FloatD, 2>;
 using Vector3fD = enoki::Array<FloatD, 3>;
 using ComplexfD = enoki::Complex<FloatD>;
-using FloatXXD = enoki::Array<enoki::Array<FloatD, 32>, 32>;
+using FloatXXD = enoki::Array<enoki::Array<FloatD, 16>, 16>;
+// using FloatXXD = enoki::Array<enoki::Array<FloatD, 32>, 32>;
 
 using namespace std;
 namespace py = pybind11;

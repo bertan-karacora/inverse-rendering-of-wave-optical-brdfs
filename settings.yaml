@@ -1,3 +1,7 @@
 config: 'settings.yaml'
-reference_path: 'Heightfields/scratched.exr'
-resolution: 32
+reference_path: 'Heightfields/isotropic.exr'
+resolution: 16
+texel_width: 1
+x: 8.0
+y: 8.0
+iterations: 30

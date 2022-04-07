@@ -48,8 +48,8 @@ HeightfieldDiff::HeightfieldDiff(Eigen::MatrixXf values, int width, int height, 
     this->width = width;
     this->height = height;
 
-    for (int i = 0; i < width; i++) {
-        for (int j = 0; j < height; j++) {
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
             this->values[i][j] = values(i, j);
         }
     }

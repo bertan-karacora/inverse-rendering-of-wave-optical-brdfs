@@ -23,7 +23,7 @@ parser.add_argument("--texel_width", type=float, default=1.0, help="Width of a t
 parser.add_argument("--vert_scale", type=float, default=1.0, help="Vertical scaling factor of the heightfield.")
 parser.add_argument("--resolution", type=int, default=256, help="Output BRDF resolution.")
 
-parser.add_argument("--iterations", type=int, default=1, help="Number of iterations.")
+parser.add_argument("--iterations", type=int, default=10, help="Number of iterations.")
 
 
 args = parser.parse_args()
