@@ -82,18 +82,18 @@ for i in range(args.iterations):
     
 
 def plot():
-    axis = np.linspace(0, args.iterations, log.size(0))
+    axis = np.linspace(0, args.iterations, len(log))
     label = "Loss during iterative optimization"
     labels = ["Mean squared error"]
     fig = plt.figure()
     plt.title(label)
     for i in range(len(labels)):
-        plt.plot(axis, np.asarray(log[:, i + 1]), label=labels[i])
+        plt.plot(axis, np.asarray(log)[:, i + 1], label=labels[i])
     plt.legend()
     plt.xlabel("Iterations")
     plt.ylabel("Loss")
     plt.grid(True)
-    plt.savefig("fResults/{now}/loss.pdf", dpi=600)
+    plt.savefig(f"Results/{now}/loss.pdf", dpi=600)
     plt.close(fig)
 
 plot()

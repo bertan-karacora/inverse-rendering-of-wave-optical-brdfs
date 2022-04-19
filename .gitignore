@@ -5,3 +5,5 @@ __*
 *.so
 *.exr
 *.zip
+Results/*
+Heightfields/*
