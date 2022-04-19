@@ -364,11 +364,9 @@ BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, const HeightfieldD
     Eigen::MatrixXf brdfImage_r(resolution, resolution);
     Eigen::MatrixXf brdfImage_g(resolution, resolution);
     Eigen::MatrixXf brdfImage_b(resolution, resolution);
-    Eigen::MatrixXf brdfImage_grad(resolution, resolution);
+    Eigen::MatrixXf brdfImage_grad(heightfield.width, heightfield.height);
 
-    enoki::Array<FloatD, 16*16*3> diff;
-
-    // enoki::Array<FloatD, 32*32*3> diff_r;
+    enoki::Array<FloatD, 16 * 16 * 3> diff;
 
     // #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < resolution; i++) {
