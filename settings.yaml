@@ -6,9 +6,9 @@ crop_y: 8
 texel_width: 1.0
 x: 8.0
 y: 8.0
-sigma: 3.0
+sigma: 10.0
 resolution: 16
-iterations: 200
+iterations: 20
 lr: 0.001
 beta1: 0.9
 beta2: 0.99

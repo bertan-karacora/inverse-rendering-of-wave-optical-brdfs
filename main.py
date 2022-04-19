@@ -1,4 +1,10 @@
 import numpy as np
+import datetime
+import os
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 from options import args
 
 from WaveOpticsBrdfWithPybind.exrimage import EXRImage
@@ -9,37 +15,59 @@ from WaveOpticsBrdfWithPybind.gaborkerneldiff import GaborKernelDiff, GaborKerne
 from WaveOpticsBrdfWithPybind.brdf import initialize, makeQuery, Query, BrdfImage, WaveBrdfAccel
 
 
-# Setup
+###################### Setup ##########################
 initialize()
 query = makeQuery(args.x, args.y, args.sigma, args.lambda_, args.light_x, args.light_y)
 ground_truth = EXRImage(args.reference_path)
+log = []
+since = datetime.datetime.now()
+now = datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S")
+results_path = f"{os.path.abspath(os.path.dirname(__file__))}/Results/{now}"
+
+def make_dir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+make_dir(results_path)
+make_dir(f"{results_path}/Brdf")
+make_dir(f"{results_path}/Gradient")
+make_dir(f"{results_path}/Hypothesis")
 
 # Cropping
 ground_truth.width = ground_truth.height = args.size
 ground_truth.values = ground_truth.values[args.crop_x:args.crop_x+args.size, args.crop_y:args.crop_x+args.size]
-EXRImage.writeImage(ground_truth.values, args.size, args.size, "Results/Reference.exr")
+EXRImage.writeImage(ground_truth.values, args.size, args.size, f"Results/{now}/Ref_Heightfield.exr")
 
-brdfFunction = WaveBrdfAccel(args.diff_model, ground_truth.width, ground_truth.height, args.texel_width, args.resolution)
+brdf_function = WaveBrdfAccel(args.diff_model, ground_truth.width, ground_truth.height, args.texel_width, args.resolution)
+########################################################
+
 
 # Generate reference BRDF output
-refHeightfield = Heightfield(ground_truth.values, ground_truth.width, ground_truth.height, args.texel_width, args.vert_scale)
-refGaborBasis = GaborBasis(refHeightfield)
-refResult = brdfFunction.genBrdfImage(query, refGaborBasis)
-EXRImage.writeImageRGB(refResult.r, refResult.g, refResult.b, args.resolution, args.resolution, "Results/ReferenceBrdf.exr")
+ref_heightfield = Heightfield(ground_truth.values, ground_truth.width, ground_truth.height, args.texel_width, args.vert_scale)
+ref_gabor_basis = GaborBasis(ref_heightfield)
+ref_result = brdf_function.genBrdfImage(query, ref_gabor_basis)
+EXRImage.writeImageRGB(ref_result.r, ref_result.g, ref_result.b, args.resolution, args.resolution, f"Results/{now}/Ref_Brdf.exr")
 
 # Generate hypothesis
-heightfield = HeightfieldDiff(np.zeros((refHeightfield.width, refHeightfield.height)), refHeightfield.width, refHeightfield.height, args.texel_width, args.vert_scale)
-# gaborbasis = GaborBasisDiff(heightfield)
-EXRImage.writeImage(np.transpose(heightfield.values[0]), heightfield.width, heightfield.height, "Results/Heightfield/Hypo_0.exr")
-result = brdfFunction.genBrdfImageDiff(query, heightfield, refResult)
-EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, "Results/Brdf/Brdf_0.exr")
-EXRImage.writeImage(result.grad, heightfield.width, heightfield.height, "Results/Gradients/Grad_0.exr")
+heightfield = HeightfieldDiff(np.zeros((ref_heightfield.width, ref_heightfield.height)), ref_heightfield.width, ref_heightfield.height, args.texel_width, args.vert_scale)
 
-# Optimization
+
+################### Optimization ########################
 m = np.zeros((heightfield.width, heightfield.height))
 v = np.zeros((heightfield.width, heightfield.height))
 for i in range(args.iterations):
     values = np.transpose(heightfield.values[0])
+    EXRImage.writeImage(values, heightfield.width, heightfield.height, f"Results/{now}/Hypothesis/Hypo_{i}.exr")
+    result = brdf_function.genBrdfImageDiff(query, heightfield, ref_result)
+    EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, f"Results/{now}/Brdf/Brdf_{i}.exr")
+    EXRImage.writeImage(result.grad, heightfield.width, heightfield.height, f"Results/{now}/Gradient/Grad_{i}.exr")
+
+    ref_diff = np.sum(np.square(np.subtract(values, ref_heightfield.values))) / (heightfield.width * heightfield.height)
+    loss = np.sum(np.square(np.subtract(result.r, ref_result.r)) + np.square(np.subtract(result.g, ref_result.g)) + np.square(np.subtract(result.b, ref_result.b))) / (args.resolution * args.resolution)
+    print("Real diff: ", ref_diff)
+    print("Loss: ", loss)
+    log.append([i, loss])
+
     m = args.beta1 * m + (1.0 - args.beta1) * result.grad
     v = args.beta2 * v + (1.0 - args.beta2) * np.square(result.grad)
     mhat = m / (1.0 - args.beta1**(i+1))
@@ -47,24 +75,25 @@ for i in range(args.iterations):
     values = np.subtract(values, np.divide(args.lr * mhat, np.sqrt(vhat) + args.eps))
 
     heightfield = HeightfieldDiff(values, heightfield.width, heightfield.height, args.texel_width, args.vert_scale)
-    EXRImage.writeImage(values, heightfield.width, heightfield.height, f"Results/Heightfield/Hypo_{i+1}.exr")
 
-    print("Real diff: ", np.sum(np.square(np.subtract(values, refHeightfield.values))))
-    print("Objective: ", np.sum(np.square(np.subtract(result.r, refResult.r)) + np.square(np.subtract(result.g, refResult.g)) + np.square(np.subtract(result.b, refResult.b))))
+    time_elapsed = (datetime.datetime.now() - since).seconds
+    print("Iteration: ", i, ", time: ", time_elapsed // 60, "m", time_elapsed % 60, "s")
+##########################################################
+    
 
-    result = brdfFunction.genBrdfImageDiff(query, heightfield, refResult)
-    EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, f"Results/Brdf/Brdf_{i+1}.exr")
-    EXRImage.writeImage(result.grad, heightfield.width, heightfield.height, f"Results/Gradients/Grad_{i+1}.exr")
+def plot():
+    axis = np.linspace(0, args.iterations, log.size(0))
+    label = "Loss during iterative optimization"
+    labels = ["Mean squared error"]
+    fig = plt.figure()
+    plt.title(label)
+    for i in range(len(labels)):
+        plt.plot(axis, np.asarray(log[:, i + 1]), label=labels[i])
+    plt.legend()
+    plt.xlabel("Iterations")
+    plt.ylabel("Loss")
+    plt.grid(True)
+    plt.savefig("fResults/{now}/loss.pdf", dpi=600)
+    plt.close(fig)
 
-
-
-
-# Test single input change
-# array = np.zeros((refImage.width, refImage.height))
-# array[10][10] = 0.9
-# heightfield2 = Heightfield(array, refImage.width, refImage.height, args.texel_width, args.vert_scale)
-# gaborBasis2 = heightfield2.toGaborBasis()
-# result2 = brdfFunction.genBrdfImageFromGaborBasis(query, gaborBasis2)
-# EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, "Results/h2.exr")
-# print("Differenz: ", np.sum(result.r - result2.r))
-# EXRImage.writeImage(np.square(np.subtract(result.r, result2.r)), args.resolution, args.resolution, "Results/testdifference.exr")
+plot()
