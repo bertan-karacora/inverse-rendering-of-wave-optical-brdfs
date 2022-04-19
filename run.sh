@@ -1,4 +1,4 @@
-# nvidia-smi
+nvidia-smi
 # ulimit -s 10485760
 # echo 1 > /proc/sys/vm/overcommit_memory
 # make remake -f makefile.linux -C WaveOpticsBrdfWithPybind/

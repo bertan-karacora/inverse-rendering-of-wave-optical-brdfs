@@ -1,9 +1,15 @@
 config: 'settings.yaml'
 reference_path: 'Heightfields/isotropic.exr'
-resolution: 16
-texel_width: 1
+size: 16
+crop_x: 8
+crop_y: 8
+texel_width: 1.0
 x: 8.0
 y: 8.0
-iterations: 100
-lr: 0.001
 # sigma: 3.0
+resolution: 64
+iterations: 200
+lr: 0.001
+beta1: 0.9
+beta2: 0.99
+eps: 10.0E-8
