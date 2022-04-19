@@ -24,6 +24,7 @@ parser.add_argument("--vert_scale", type=float, default=1.0, help="Vertical scal
 parser.add_argument("--resolution", type=int, default=256, help="Output BRDF resolution.")
 
 parser.add_argument("--iterations", type=int, default=10, help="Number of iterations.")
+parser.add_argument("--lr", type=float, default=0.001, help="Learning rate of optimization.")
 
 
 args = parser.parse_args()

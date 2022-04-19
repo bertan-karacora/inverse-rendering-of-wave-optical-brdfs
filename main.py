@@ -16,8 +16,8 @@ refImage = EXRImage(args.reference_path)
 
 # Cut smaller
 refImage.width = refImage.height = w = h = args.resolution
-x_off = 0
-y_off = 0
+x_off = 8
+y_off = 8
 refImage.values = refImage.values[x_off:x_off+w, y_off:y_off+h]
 EXRImage.writeImage(refImage.values, args.resolution, args.resolution, "Results/Reference.exr")
 
@@ -36,29 +36,37 @@ EXRImage.writeImageRGB(refResult.r, refResult.g, refResult.b, args.resolution, a
 heightfield = HeightfieldDiff(np.zeros((refImage.width, refImage.height)), refImage.width, refImage.height, args.texel_width, args.vert_scale)
 # heightfield = HeightfieldDiff(refImage.values, refImage.width, refImage.height, args.texel_width, args.vert_scale)
 # gaborbasis = GaborBasisDiff(heightfield)
-EXRImage.writeImage(np.transpose(heightfield.values[0]), args.resolution, args.resolution, "Results/hypo_0.exr")
+EXRImage.writeImage(np.transpose(heightfield.values[0]), args.resolution, args.resolution, "Results/Heightfield/Hypo_0.exr")
 result = brdfFunction.genBrdfImageDiff(query, heightfield, refResult)
-EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, "Results/Brdf_0.exr")
+EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, "Results/Brdf/Brdf_0.exr")
 EXRImage.writeImageRGB(np.subtract(result.r, refResult.r), np.subtract(result.g, refResult.g), np.subtract(result.b, refResult.b), args.resolution, args.resolution, "Results/diff_0.exr")
-EXRImage.writeImage(result.grad, args.resolution, args.resolution, "Results/grad_0.exr")
-
-# Learning rate for stochastic gradient descent
-lr = 0.005
+EXRImage.writeImage(result.grad, args.resolution, args.resolution, "Results/Gradients/Grad_0.exr")
 
 # Optimization
+# beta1 = 0.6
+# beta2 = 0.99
+# eps = 10E-8
+# m = np.zeros((refImage.width, refImage.height))
+# v = np.zeros((refImage.width, refImage.height))
 for i in range(args.iterations):
-    heightfield = HeightfieldDiff(np.transpose(heightfield.values[0]) - result.grad * lr, refImage.width, refImage.height, args.texel_width, args.vert_scale)
-    EXRImage.writeImage(np.transpose(heightfield.values[0]), args.resolution, args.resolution, f"Results/hypo_{i}.exr")
-    # EXRImage.writeImage(np.square(np.subtract(heightfield.values, refHeightfield.values)), heightfield.width, heightfield.height, f"Results/HeightfieldResiduum_{i}.exr")
-    opVal = np.sum(np.square(np.subtract(np.transpose(heightfield.values[0]), refHeightfield.values)))
-    print("Real diff: ", opVal)
-    # np.subtract(result.r, refResult.r), np.subtract(result.g, refResult.g), np.subtract(result.b, refResult.b)
-    opVal2 = np.sum(np.square(np.subtract(result.r, refResult.r)))
-    print("Objective: ", opVal2)
+    values = np.transpose(heightfield.values[0])
+    # m = np.multiply(beta1 * m + (1.0 - beta1), result.grad)
+    # v = np.multiply(beta2 * v + (1.0 - beta2), np.square(result.grad))
+    # mhat = m / (1.0 - beta1**(i+1))
+    # vhat = v / (1.0 - beta2**(i+1))
+    # values = np.divide(np.subtract(values, args.lr * mhat), (np.sqrt(vhat) + eps))
+    values = np.subtract(values, args.lr * result.grad)
+    # values = np.clip(values, -0.9, 0.9)
+
+    heightfield = HeightfieldDiff(values, refImage.width, refImage.height, args.texel_width, args.vert_scale)
+    EXRImage.writeImage(values, args.resolution, args.resolution, f"Results/Heightfield/Hypo_{i}.exr")
+
+    print("Real diff: ", np.sum(np.square(np.subtract(values, refHeightfield.values))))
+    print("Objective: ", np.sum(np.square(np.subtract(result.r, refResult.r)) + np.square(np.subtract(result.g, refResult.g)) + np.square(np.subtract(result.b, refResult.b))))
 
     result = brdfFunction.genBrdfImageDiff(query, heightfield, refResult)
-    EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, f"Results/Brdf_{i}.exr")
-    EXRImage.writeImage(result.grad, args.resolution, args.resolution, f"Results/grad_{i}.exr")
+    EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, f"Results/Brdf/Brdf_{i}.exr")
+    EXRImage.writeImage(result.grad, args.resolution, args.resolution, f"Results/Gradients/Grad_{i}.exr")
 
 
 
