@@ -14,6 +14,21 @@ from WaveOpticsBrdfWithPybind.heightfielddiff import HeightfieldDiff, GaborBasis
 from WaveOpticsBrdfWithPybind.gaborkerneldiff import GaborKernelDiff, GaborKernelPrimeDiff
 from WaveOpticsBrdfWithPybind.brdf import initialize, makeQuery, Query, BrdfImage, WaveBrdfAccel
 
+def plot():
+    axis = np.linspace(0, args.iterations, len(log))
+    label = "Loss during iterative optimization"
+    labels = ["Mean squared error"]
+    fig = plt.figure()
+    plt.title(label)
+    for i in range(len(labels)):
+        plt.plot(axis, np.asarray(log)[:, i + 1], label=labels[i])
+    plt.legend()
+    plt.xlabel("Iterations")
+    plt.ylabel("Loss")
+    plt.grid(True)
+    plt.savefig(f"Results/{now}/loss.pdf", dpi=600)
+    plt.close(fig)
+
 
 ###################### Setup ##########################
 initialize()
@@ -67,6 +82,7 @@ for i in range(args.iterations):
     print("Real diff: ", ref_diff)
     print("Loss: ", loss)
     log.append([i, loss])
+    if (i % 20): plot()
 
     m = args.beta1 * m + (1.0 - args.beta1) * result.grad
     v = args.beta2 * v + (1.0 - args.beta2) * np.square(result.grad)
@@ -79,21 +95,3 @@ for i in range(args.iterations):
     time_elapsed = (datetime.datetime.now() - since).seconds
     print("Iteration: ", i, ", time: ", time_elapsed // 60, "m", time_elapsed % 60, "s")
 ##########################################################
-    
-
-def plot():
-    axis = np.linspace(0, args.iterations, len(log))
-    label = "Loss during iterative optimization"
-    labels = ["Mean squared error"]
-    fig = plt.figure()
-    plt.title(label)
-    for i in range(len(labels)):
-        plt.plot(axis, np.asarray(log)[:, i + 1], label=labels[i])
-    plt.legend()
-    plt.xlabel("Iterations")
-    plt.ylabel("Loss")
-    plt.grid(True)
-    plt.savefig(f"Results/{now}/loss.pdf", dpi=600)
-    plt.close(fig)
-
-plot()
