@@ -27,6 +27,7 @@ parser.add_argument("--resolution", type=int, default=256, help="Output BRDF res
 
 parser.add_argument("--iterations", type=int, default=10, help="Number of iterations.")
 parser.add_argument("--lr", type=float, default=0.001, help="ADAM learning rate (alpha).")
+parser.add_argument("--decay", type=float, default=0.001, help="learning rate exponential decay.")
 parser.add_argument("--beta1", type=float, default=0.9, help="ADAM beta1 parameter.")
 parser.add_argument("--beta2", type=float, default=0.99, help="ADAM beta2 parameter.")
 parser.add_argument("--eps", type=float, default=10.0E-8, help="LADAM eps parameter")
