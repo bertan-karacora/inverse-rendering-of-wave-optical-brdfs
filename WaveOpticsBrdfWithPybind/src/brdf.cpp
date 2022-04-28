@@ -159,7 +159,7 @@ ComplexfD WaveBrdfAccel::queryIntegralDiff(const Query &query, const GaborBasisD
         if (aDistSqr > (3.0f * aSigma) * (3.0f * aSigma))
             return ComplexfD(Float(0.0), Float(0.0));
 
-        Float C2 = 1.0f;
+        FloatD C2 = 1.0f;
         if (diff_model == "Kirchhoff") {
             Vector2fD HPrime = gaborBasis.gaborKernelPrime[xIndex][yIndex].aInfo / 2.0f;
             Vector3fD m(-HPrime[0], -HPrime[1], 1.0f);
@@ -167,10 +167,10 @@ ComplexfD WaveBrdfAccel::queryIntegralDiff(const Query &query, const GaborBasisD
 
             Float oDotN = sqrt(abs(1.0f - query.omega_o.dot(query.omega_o)));
             Float iDotN = sqrt(abs(1.0f - query.omega_i.dot(query.omega_i)));
-            Vector3 omega_o(query.omega_o(0), query.omega_o(1), oDotN);
-            Vector3 omega_i(query.omega_i(0), query.omega_i(1), iDotN);
+            Vector3fD omega_o(query.omega_o(0), query.omega_o(1), oDotN);
+            Vector3fD omega_i(query.omega_i(0), query.omega_i(1), iDotN);
 
-            C2 = (omega_o + omega_i).dot(Vector3(m[0][0], m[1][0], m[2][0])) / m[2][0];
+            C2 = enoki::dot(omega_o + omega_i, m) / m[2];
         }
 
         GaborKernelPrimeDiff gp = gaborBasis.gaborKernelPrime[xIndex][yIndex];
@@ -366,10 +366,11 @@ BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, const HeightfieldD
     Eigen::MatrixXf brdfImage_b(resolution, resolution);
     Eigen::MatrixXf brdfImage_grad(heightfield.width, heightfield.height);
 
-    enoki::Array<FloatD, 16 * 16 * 3> mse;
-    // enoki::Array<FloatD, 16 * 16 * 3> mse_hdr;
+    // enoki::Array<FloatD, 16 * 16 * 3> mse;
+    enoki::Array<FloatD, 32 * 32 * 3> mse_hdr;
     // enoki::Array<FloatD, 16 * 16 * 3> mse_rgb;
-    
+
+    Float eps = 1.0f;
 
     // #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < resolution; i++) {
@@ -392,7 +393,7 @@ BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, const HeightfieldD
                     brdfValue = queryBrdfDiff(q, gaborBasis);
                 }
 
-                if (std::isnan(brdfValue[0]))
+                if (std::isnan(enoki::detach(brdfValue)))
                     brdfValue = 0.0f;
 
                 spectrumSamples.push_back(brdfValue);
@@ -401,20 +402,20 @@ BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, const HeightfieldD
             FloatD r, g, b;
             SpectrumToRGB(spectrumSamples, r, g, b);
 
-            if (r[0] < 0.0f) r -= r;
-            if (g[0] < 0.0f) g -= g;
-            if (b[0] < 0.0f) b -= b;
+            if (enoki::any(r < 0.0f)) r -= r;
+            if (enoki::any(g < 0.0f)) g -= g;
+            if (enoki::any(b < 0.0f)) b -= b;
 
-            brdfImage_r(i, j) = r[0];
-            brdfImage_g(i, j) = g[0];
-            brdfImage_b(i, j) = b[0];
+            brdfImage_r(i, j) = enoki::detach(r);
+            brdfImage_g(i, j) = enoki::detach(g);
+            brdfImage_b(i, j) = enoki::detach(b);
 
-            mse[3 * (i * width + j)] = r - ref.r(i, j);
-            mse[3 * (i * width + j) + 1] = g - ref.g(i, j);
-            mse[3 * (i * width + j) + 2] = b - ref.b(i, j);
-            // mse_hdr[3 * (i * width + j)] = enoki::log(r + 1.0f) - log(ref.r(i, j) + 1.0f);
-            // mse_hdr[3 * (i * width + j) + 1] = enoki::log(g + 1.0f) - log(ref.g(i, j) + 1.0f);
-            // mse_hdr[3 * (i * width + j) + 2] = enoki::log(b + 1.0f) - log(ref.b(i, j) + 1.0f);
+            // mse[3 * (i * width + j)] = r - ref.r(i, j);
+            // mse[3 * (i * width + j) + 1] = g - ref.g(i, j);
+            // mse[3 * (i * width + j) + 2] = b - ref.b(i, j);
+            mse_hdr[3 * (i * width + j)] = enoki::log(r + eps) - log(ref.r(i, j) + eps);
+            mse_hdr[3 * (i * width + j) + 1] = enoki::log(g + eps) - log(ref.g(i, j) + eps);
+            mse_hdr[3 * (i * width + j) + 2] = enoki::log(b + eps) - log(ref.b(i, j) + eps);
             // mse_rgb[3 * (i * width + j)] = enoki::pow(r / (1.0f + r), 1.0f / 2.2f) - std::pow(ref.r(i, j) / (1.0f + ref.r(i, j)), 1.0f / 2.2f);
             // mse_rgb[3 * (i * width + j) + 1] = enoki::pow(g / (1.0f + g), 1.0f / 2.2f) - std::pow(ref.g(i, j) / (1.0f + ref.g(i, j)), 1.0f / 2.2f);
             // mse_rgb[3 * (i * width + j) + 2] = enoki::pow(b / (1.0f + b), 1.0f / 2.2f) - std::pow(ref.b(i, j) / (1.0f + ref.b(i, j)), 1.0f / 2.2f);
@@ -426,10 +427,7 @@ BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, const HeightfieldD
     brdfImage.g = brdfImage_g;
     brdfImage.b = brdfImage_b;
 
-    FloatD loss = enoki::norm(mse);
-    // FloatD loss = enoki::norm(mse_hdr);
-    // FloatD loss = 0.5f * enoki::norm(mse_hdr) + 0.5f * enoki::norm(mse_rgb);
-    
+    FloatD loss = enoki::hsum(enoki::sqr(mse_hdr));
 
     enoki::backward(loss);
 

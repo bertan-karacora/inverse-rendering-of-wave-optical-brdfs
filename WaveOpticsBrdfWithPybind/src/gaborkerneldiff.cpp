@@ -30,8 +30,8 @@ ComplexfD GaborKernelDiff::eval(Vector2 s) {
 }
 
 ComplexfD GaborKernelDiff::xform(Vector2 u) {
-    Float sigmaPrime = Float(1.0 / (2.0 * M_PI * sigma));
-    ComplexfD CPrime = C * Float(1.0 / (2.0 * M_PI * sigma * sigma)) * cnis(2.0f * M_PIf * enoki::dot(a, mu));
+    Float sigmaPrime = 1.0f / (2.0f * M_PIf * sigma);
+    ComplexfD CPrime = C * 1.0f / (2.0f * M_PIf * sigma * sigma) * cnis(2.0f * M_PIf * enoki::dot(a, mu));
     GaborKernelDiff g(-a, sigmaPrime, mu, CPrime);
     return g.eval(u);
 }

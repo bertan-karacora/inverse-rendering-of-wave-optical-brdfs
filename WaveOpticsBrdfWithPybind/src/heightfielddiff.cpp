@@ -163,8 +163,7 @@ GaborBasisDiff::GaborBasisDiff(const HeightfieldDiff &hf) {
             Vector2fD aInfo_k = 2.0f * HPrime_mk;
 
             gaborKernelPrimeRow.push_back(GaborKernelPrimeDiff(mu_k, sigma_k, aInfo_k, cInfo_k));
-            // FloatC aInfo_k_cpu = enoki::detach(aInfo_k);
-            angularBBRow.push_back(AABB(-aInfo_k[0][0], -aInfo_k[0][0], -aInfo_k[1][0], -aInfo_k[1][0]));
+            angularBBRow.push_back(AABB(-enoki::detach(aInfo_k[0]), -enoki::detach(aInfo_k[0]), -enoki::detach(aInfo_k[1]), -enoki::detach(aInfo_k[1])));
         }
     }
 
