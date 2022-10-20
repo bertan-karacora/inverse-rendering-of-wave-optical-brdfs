@@ -366,15 +366,15 @@ BrdfImage WaveBrdfAccel::genBrdfImageDiff(const Query &query, const HeightfieldD
     Eigen::MatrixXf brdfImage_b(resolution, resolution);
     Eigen::MatrixXf brdfImage_grad(heightfield.width, heightfield.height);
 
-    // enoki::Array<FloatD, 16 * 16 * 3> mse;
+    // enoki::Array<FloatD, 32 * 32 * 3> mse;
     enoki::Array<FloatD, 32 * 32 * 3> mse_hdr;
     // enoki::Array<FloatD, 16 * 16 * 3> mse_rgb;
 
-    Float eps = 1.0f;
+    Float eps = 0.01f;
 
     // #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < resolution; i++) {
-        cout << "Generating BRDF image: row " << i << endl;
+        // cout << "Generating BRDF image: row " << i << endl;
         for (int j = 0; j < resolution; j++) {
             Vector2 omega_o((i + 0.5) / resolution * 2.0 - 1.0,
                                 (j + 0.5) / resolution * 2.0 - 1.0);

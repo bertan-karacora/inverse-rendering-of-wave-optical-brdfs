@@ -17,8 +17,11 @@ from WaveOpticsBrdfWithPybind.brdf import initialize, makeQuery, Query, BrdfImag
 def plot(i):
     axis = np.linspace(0, i, len(log))
     label = "Loss during optimization"
-    labels = ["MSE", "CMSLE (ɛ = 0.01)", "CMSLE (ɛ = 1.0)", "RGB space", "gamma corrected", "ground truth"]
-    linestyles = ["-", ":", (0, (3, 10, 1, 10, 1, 10)), "--", "-.", (0, (3, 5, 1, 5))]
+    # labels = ["MSE", "CMSLE (ɛ = 0.001)", "CMSLE (ɛ = 1.0)", "RGB space", "gamma corrected", "ground truth"]
+    # linestyles = [":", (0, (3, 10, 1, 10, 1, 10)), "--", "-.", (0, (3, 5, 1, 5)), "-"]
+    labels = ["CMSLE (ɛ = 0.001)", "CMSLE (ɛ = 1.0)", "ground truth"]
+    linestyles = [":", "--", "-"]
+    
     fig = plt.figure(figsize=(7, 4))
     plt.title(label)
     for j in range(len(labels)):
@@ -70,11 +73,12 @@ ref_result = brdf_function.genBrdfImage(query, ref_gabor_basis)
 ref_result.r = np.clip(ref_result.r, 0.0, None)
 ref_result.g = np.clip(ref_result.g, 0.0, None)
 ref_result.b = np.clip(ref_result.b, 0.0, None)
-EXRImage.writeImageRGB(ref_result.r, ref_result.g, ref_result.b, args.resolution, args.resolution, f"Results/{now}/Ref/Ref_{x}_{y}_{light_x}_{light_y}.exr")
+EXRImage.writeImageRGB(ref_result.r, ref_result.g, ref_result.b, args.resolution, args.resolution, f"Results/{now}/Ref/Ref_{x}_{y}.exr")
 
 
 # Generate hypothesis
-heightfield = HeightfieldDiff(np.zeros((ref_heightfield.width, ref_heightfield.height)), ref_heightfield.width, ref_heightfield.height, args.texel_width, args.vert_scale)
+hypo_values = np.zeros((ref_heightfield.width, ref_heightfield.height))
+heightfield = HeightfieldDiff(ground_truth.values + (np.random.rand(ref_heightfield.width, ref_heightfield.height) - 0.5) * 0.076, ref_heightfield.width, ref_heightfield.height, args.texel_width, args.vert_scale)
 
 ################### Optimization ########################
 m = np.zeros((heightfield.width, heightfield.height))
@@ -82,19 +86,16 @@ v = np.zeros((heightfield.width, heightfield.height))
 mse_s = mse_hdr_s = mse_hdr_s_2 = mse_rgb_s = mse_gamma_s = mse_truth_s = 1
 for i in range(args.iterations + 1):
     # Generate reference BRDF output
-    # x = round(np.random.uniform(0.0, args.size), 2)
-    # y = round(np.random.uniform(0.0, args.size), 2)
+    x = round(np.random.uniform(0.0, args.size), 2)
+    y = round(np.random.uniform(0.0, args.size), 2)
     # light_x = round(np.random.uniform(-1.0, 1.0), 2)
     # light_y = round(np.random.uniform(-1.0, 1.0), 2)
-    # x = y = args.size / 2.0
-    # light_x = 0.0
-    # light_y = 0.0
-    # query = makeQuery(x, y, args.sigma, args.lambda_, light_x, light_y)
-    # ref_result = brdf_function.genBrdfImage(query, ref_gabor_basis)
-    # ref_result.r = np.clip(ref_result.r, 0.0, None)
-    # ref_result.g = np.clip(ref_result.g, 0.0, None)
-    # ref_result.b = np.clip(ref_result.b, 0.0, None)
-    # EXRImage.writeImageRGB(ref_result.r, ref_result.g, ref_result.b, args.resolution, args.resolution, f"Results/{now}/Ref/Ref_{i}_{x}_{y}_{light_x}_{light_y}.exr")
+    query = makeQuery(x, y, args.sigma, args.lambda_, light_x, light_y)
+    ref_result = brdf_function.genBrdfImage(query, ref_gabor_basis)
+    ref_result.r = np.clip(ref_result.r, 0.0, None)
+    ref_result.g = np.clip(ref_result.g, 0.0, None)
+    ref_result.b = np.clip(ref_result.b, 0.0, None)
+    EXRImage.writeImageRGB(ref_result.r, ref_result.g, ref_result.b, args.resolution, args.resolution, f"Results/{now}/Ref/Ref_{i}_{x}_{y}.exr")
 
 
     args.lr *= (1.0 - args.decay)
@@ -109,7 +110,7 @@ for i in range(args.iterations + 1):
     EXRImage.writeImageRGB(result.r, result.g, result.b, args.resolution, args.resolution, f"Results/{now}/Brdf/Brdf_{i}.exr")
     EXRImage.writeImage(result.grad, heightfield.width, heightfield.height, f"Results/{now}/Gradient/Grad_{i}.exr")
 
-    eps = 0.01
+    eps = 0.001
     eps_2 = 1.0
     mse_truth = np.mean((values - ref_heightfield.values)**2) / mse_truth_s
     mse = np.mean((result.r - ref_result.r)**2 + (result.g - ref_result.g)**2 + (result.b - ref_result.b)**2) / mse_s
@@ -124,9 +125,9 @@ for i in range(args.iterations + 1):
         mse_hdr_s_2 = mse_hdr_2
         mse_rgb_s = mse_rgb
         mse_gamma_s = mse_gamma
-        log.append([i, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+        log.append([i, 1.0, 1.0, 1.0])
     else:
-        log.append([i, mse, mse_hdr, mse_hdr_2, mse_rgb, mse_gamma, mse_truth])
+        log.append([i, mse_hdr, mse_hdr_2, mse_truth])
     print("MSE (truth): ", mse_truth)
     print("MSE: ", mse)
     print("MSE HDR: ", mse_hdr)
